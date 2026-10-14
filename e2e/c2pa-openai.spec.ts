@@ -46,9 +46,13 @@ test("genuine signed JPEG exercises the detected path with honest semantics", as
   await expect(panel).toContainText("Valid");
   await expect(panel).toContainText("reported 1 failure");
   await expect(panel).toContainText("Do not treat the claim as trusted");
+  // Exact failure classes stay visible: an untrusted credential must never
+  // read as content tampering.
+  await expect(panel).toContainText("signingCredential.untrusted");
+  await expect(panel).not.toContainText("claimSignature.mismatch");
   // The C2PA-derived AI indicator fires; the row chip counts real evidence.
   await expect(panel).toContainText("C2PA claim declares an AI-associated digital source type");
-  await expect(row(page, "signed-c2pa.jpg")).toContainText("C2PA 8");
+  await expect(row(page, "signed-c2pa.jpg")).toContainText("C2PA 9");
   // Two distinct digital-source-type claim values surface (action-level URI
   // plus the provenance assertion's short form) — both are real evidence.
   await expect(row(page, "signed-c2pa.jpg")).toContainText("AI 2");
@@ -65,6 +69,10 @@ test("tampered manifest stays detected and reports validation failures", async (
   // absent and never as silently valid.
   await expect(panel).toContainText(/reported [23] failures/);
   await expect(panel).toContainText("Do not treat the claim as trusted");
+  // Exactly the two expected classes: credential trust + content integrity.
+  // (Count tolerance covers SDK-version drift; the codes are the pins.)
+  await expect(panel).toContainText("claimSignature.mismatch");
+  await expect(panel).toContainText("signingCredential.untrusted");
   await expect(panel).not.toContainText("No embedded C2PA Manifest Store identifier was found");
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
 });
@@ -80,6 +88,38 @@ test("ordinary images and dummy markers report not detected — never fake-detec
     await expect(panel).toContainText("No embedded C2PA Manifest Store identifier was found");
     await page.getByRole("button", { name: "Close" }).click();
   }
+  expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
+});
+
+test("expired credential reports its own codes, not tampering", async ({ page }) => {
+  // Locally signed under an expired test credential (see
+  // src/test-fixtures/README.md): the store is genuine and the bytes are
+  // intact, but the credential pair must fail openly — the same shape as
+  // real-world expired-signer files (e.g. older ChatGPT PNG exports).
+  await upload(page, ["expired-cert.jpg"]);
+  await inspectRow(page, "expired-cert.jpg");
+  const panel = page.locator('[data-testid="inspector-panel"]');
+  await panel.getByText("C2PA / Content Credentials", { exact: false }).first().click();
+  await expect(panel).toContainText("detected");
+  await expect(panel).toContainText("Invalid");
+  await expect(panel).toContainText("signingCredential.expired");
+  await expect(panel).toContainText("signingCredential.untrusted");
+  await expect(panel).toContainText("P0 Expired Test Signer 3");
+  await expect(panel).not.toContainText("No embedded C2PA Manifest Store identifier was found");
+  expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
+});
+
+test("signed PNG validates in-browser via its real caBX chunk", async ({ page }) => {
+  await upload(page, ["signed-c2pa.png"]);
+  await inspectRow(page, "signed-c2pa.png");
+  const pngPanel = page.locator('[data-testid="inspector-panel"]');
+  await pngPanel.getByText("C2PA / Content Credentials", { exact: false }).first().click();
+  await expect(pngPanel).toContainText("detected");
+  await expect(pngPanel).toContainText("Manifest Store");
+  await expect(pngPanel).toContainText("AI Metadata Remover P0 proof signer");
+  await expect(pngPanel).toContainText("trainedAlgorithmicMedia");
+  await expect(pngPanel).toContainText("signingCredential.untrusted");
+  await expect(row(page, "signed-c2pa.png")).toContainText("C2PA 9");
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
 });
 

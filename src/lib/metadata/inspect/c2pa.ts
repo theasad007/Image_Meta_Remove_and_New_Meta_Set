@@ -121,6 +121,55 @@ function isAiSource(value: string): boolean {
   return /trainedalgorithmic|algorithmicmedia|compositewithtrainedalgorithmic/i.test(value);
 }
 
+export interface C2paValidationSummary {
+  /** Counted failures (active manifest only; ingredient deltas are separate). */
+  failures: number;
+  /** Human-readable `code — explanation` lines, order-preserved, deduplicated. */
+  failureDetails: string[];
+}
+
+interface ValidationStatusLike {
+  code?: unknown;
+  explanation?: unknown;
+  success?: unknown;
+}
+
+interface ValidationStoreLike {
+  validation_results?: {
+    activeManifest?: { failure?: ValidationStatusLike[] | null } | null;
+  } | null;
+  validation_status?: ValidationStatusLike[] | null;
+}
+
+/** Keep validator output bounded even for adversarial manifests. */
+const MAX_FAILURE_DETAILS = 10;
+
+/**
+ * Summarize validator failures WITHOUT conflating classes. Only the active
+ * manifest's failures are counted — `ingredientDeltas` (if any) describe
+ * embedded ingredient claims separately and never leak into this count.
+ * Falls back to the flattened `validation_status` list only when the
+ * structured results are absent. Pure and Node-testable.
+ */
+export function summarizeValidation(store: ValidationStoreLike): C2paValidationSummary {
+  const fromResults = store.validation_results?.activeManifest?.failure ?? null;
+  const list = fromResults ?? (store.validation_status ?? []).filter((item) => item.success === false);
+  const details: string[] = [];
+  for (const item of list) {
+    const code = typeof item.code === "string" ? item.code.trim() : "";
+    if (!code) continue;
+    const explanation =
+      typeof item.explanation === "string" ? item.explanation.trim().replace(/\s+/g, " ") : "";
+    const text =
+      explanation && explanation.toLowerCase() !== code.toLowerCase()
+        ? `${code} — ${explanation.slice(0, 200)}`
+        : code;
+    if (!details.includes(text)) details.push(text);
+    if (details.length >= MAX_FAILURE_DETAILS) break;
+  }
+  return { failures: list.length, failureDetails: details };
+}
+
 export async function inspectC2pa(blob: Blob, mimeType: string): Promise<C2paInspection> {
   if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") {
     return {
@@ -164,6 +213,19 @@ export async function inspectC2pa(blob: Blob, mimeType: string): Promise<C2paIns
       const signer = cleanText(signature?.common_name) ?? cleanText(signature?.issuer);
       if (signer) tags.push({ group: "C2PA / Content Credentials", key: "Signer", displayedValue: signer, source: "C2PA signature" });
 
+      // Surface exact failure codes (e.g. signingCredential.expired vs
+      // claimSignature.mismatch) so an untrusted/expired credential is never
+      // mistaken for content tampering. Display-only; same section, no redesign.
+      const summary = summarizeValidation(store);
+      summary.failureDetails.forEach((detail, index) =>
+        tags.push({
+          group: "C2PA / Content Credentials",
+          key: `Validation Failure ${index + 1}`,
+          displayedValue: detail.slice(0, 300),
+          source: "C2PA validator",
+        }),
+      );
+
       const aiIndicators: AiIndicator[] = [];
       for (const name of software) {
         if (!/openai|dall[ -]?e|chatgpt|stable diffusion|midjourney|firefly|generative ai/i.test(name)) continue;
@@ -186,7 +248,7 @@ export async function inspectC2pa(blob: Blob, mimeType: string): Promise<C2paIns
           explanation: "The Content Credentials manifest declares an algorithmic-media source type. This is claim evidence, not an independent visual-content verdict.",
         });
       }
-      const failures = store.validation_results?.activeManifest?.failure?.length ?? store.validation_status?.filter((item) => item.success === false).length ?? 0;
+      const failures = summary.failures;
       const warnings = failures > 0
         ? [`Content Credentials were found, but the validator reported ${failures} failure${failures === 1 ? "" : "s"}. Do not treat the claim as trusted.`]
         : ["Content Credentials were parsed locally. Validation state is shown above; presence alone does not prove the claim is trusted."];

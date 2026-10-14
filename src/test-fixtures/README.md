@@ -57,6 +57,7 @@ Pixel-equality evidence (Pillow decode before/after): recorded in
 | `jpeg-c2pa-tampered.jpg` | One flipped bit in scan data of the signed JPEG → c2patool `Invalid` + `claimSignature.mismatch`; still parses/decodes; must stay `detected` with failures, never absent/valid |
 | `jpeg-openai.jpg` | **Synthetic OpenAI tag (NOT real provenance):** XMP CreatorTool `OpenAI GPT-Image` → exactly 1 explicit indicator, row chip `OpenAI 1` |
 | `jpeg-caption-openai.jpg` | Caption `A visitor reading about OpenAI at the market`, ordinary CreatorTool → **zero** indicators, chip `AI 0` (OpenAI negative control) |
+| `expired-cert.jpg` | **Expired-credential fixture (test identity):** own synthetic base signed under a locally minted ES256 cert valid Jan 2024 only (EE←intermediate←root, faketime-assisted signing); browser reports `detected` + `Invalid` with `signingCredential.expired` + `signingCredential.untrusted` — the same shape as real expired-signer files (e.g. older ChatGPT PNG exports). SHA-256 `c168ec85…bb02b59` (36,324 B) |
 
 ## P0 C2PA/OpenAI fixtures — provenance (NOT from `gen-fixtures.py`)
 
@@ -76,6 +77,7 @@ SHA-256 of the committed bytes:
 4d44ecc0064999278cef91c81e4cd49fde3141695b9d143d4dd55ee1b2ab6e09  signed-c2pa.jpg
 74a78e7d6e50f83911a1d7bc556fc2142e5cd1e719b205f981d9e8f30fa3a68d  signed-c2pa.png
 22dd094935dbc92ab47458a06868018d47d24e1db0fe1379f4454cf3e975ba3e  jpeg-c2pa-tampered.jpg
+c168ec856e2147c8b58fdf449877716e152fe3be21cb7f1335b078242bb02b59  expired-cert.jpg
 ```
 
 Independent verification (local only): `c2patool <file>` (manifest,

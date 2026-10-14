@@ -50,7 +50,7 @@ beforeAll(async () => {
     "webp-exif-xmp.webp", "webp-empty.webp", "avif-exif-xmp.avif",
     "heic-exif-gps.heic", "heic-real-encoder.heic", "spoof-jpg-with-png-bytes.jpg",
     "jpeg-truncated.jpg", "avif-truncated-box.avif",
-    "signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg",
+    "signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg", "expired-cert.jpg",
   ]) {
     await inspect(name);
   }
@@ -144,7 +144,7 @@ describe("AI indicators (clues, never verdicts)", () => {
 
 describe("C2PA fixtures under Node (validator unavailable — browser E2E proves detected)", () => {
   it("keeps signed-manifest bytes honest: EXIF readable, C2PA uninspected here", async () => {
-    for (const name of ["signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg"]) {
+    for (const name of ["signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg", "expired-cert.jpg"]) {
       const result = await inspect(name);
       // The completed→partial downgrade for uninspected C2PA lives in the
       // browser-only withC2pa overlay (inspect.ts); under Node the EXIF/XMP
