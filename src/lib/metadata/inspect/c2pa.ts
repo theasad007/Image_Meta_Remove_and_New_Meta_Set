@@ -10,7 +10,8 @@ export interface C2paInspection {
 
 let runtimePromise: Promise<C2paRuntime> | null = null;
 
-const C2PA_STORE_UUID = new Uint8Array([
+/** Standard C2PA Manifest Store JUMBF UUID (format-independent). Exported for tests. */
+export const C2PA_STORE_UUID = new Uint8Array([
   0x63, 0x32, 0x70, 0x61, 0x00, 0x11, 0x00, 0x10,
   0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
 ]);
@@ -25,7 +26,8 @@ function containsBytes(haystack: Uint8Array, needle: Uint8Array): boolean {
   return false;
 }
 
-async function hasEmbeddedManifestStore(blob: Blob): Promise<boolean> {
+/** Exact-UUID preflight gate. Exported for tests; behavior unchanged. */
+export async function hasEmbeddedManifestStore(blob: Blob): Promise<boolean> {
   // The standard C2PA Manifest Store JUMBF UUID is format-independent. An
   // exact 128-bit match is a cheap local gate that avoids loading 12 MB of
   // validator WASM for the overwhelmingly common no-C2PA case.

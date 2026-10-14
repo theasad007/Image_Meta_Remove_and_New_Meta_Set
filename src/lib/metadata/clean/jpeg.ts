@@ -320,7 +320,7 @@ export function cleanJpeg(input: Uint8Array, policy: CleaningPolicy): JpegCleanO
   for (const raw of seg.app11) {
     out.push(raw);
     coverageLimited = true;
-    warnings.push("APP11 (possible JUMBF/C2PA container data) retained unassessed; C2PA is not inspected in Phase 3.");
+    warnings.push("APP11 (possible JUMBF/C2PA container data) retained unassessed; ordinary cleaning does not remove signed provenance.");
     changes.push(change("JUMBF", "APP11 segment", "retained_unsupported", "Unassessed container data kept; coverage limited."));
   }
   // APP2: keep ICC + MPF-aware conservatism.

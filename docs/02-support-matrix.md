@@ -31,7 +31,7 @@
 - **PNG text chunks** (`tEXt`/`zTXt`/`iTXt`, XMP, `eXIf`).
 - **WebP RIFF chunks** (`EXIF`, `XMP `, ICC).
 - **AVIF/HEIC (ISOBMFF):** validate `ftyp` brands (not extension), `meta`/`hdlr`/`pitm`/`iinf`/`infe`/`iloc`/`iprp`/`mdat`/`idat`, item references, auxiliary/thumbnail/grid/overlay items, UUID/JUMBF boxes. AVIF and HEIC share the container shape but are validated independently. Sequences (`msf1`/`heis`, `moov`/`udta`, no `meta`) are out of scope → refuse as `Unsupported`, never corrupt.
-- **C2PA / JUMBF** — presence vs cryptographic validation distinguished; removal only if JUMBF-strip proven per-format.
+- **C2PA / JUMBF** — presence vs cryptographic validation distinguished (browser validator reports both; test-identity fixtures show `Valid` + untrusted-credential failure vs `Invalid` + mismatch after tampering/cleaning); removal NOT implemented — retained JUMBF/`uuid` forces `partially_cleaned`.
 - **Video container/track tags** (encoder, creation, title, location, `udta`/`meta`/`ilst`, rotation, tracks).
 - **AI indicators** — heuristic strings only, never verdicts.
 
@@ -59,7 +59,7 @@ ZIP shape: `metadata-cleaned-YYYY-MM-DD.zip` → `images/<stem>-clean.<true-ext>
 
 ## 2.6 Reporting support (Phase 5 — proven per format via shared engine)
 
-Guest standalone + ZIP-embedded CSV/PDF for JPEG/PNG/WebP/AVIF/HEIC results (and honest rows for failures/unsupported/videos/never-processed): summary CSV one-row-per-file, detailed tags ledger, PDF cover→methodology with disclosed compact mode past 120 files. Verified-removed counts derive only from verified `changes[]`; rewrites always 0/n-a; C2PA `not_inspected`; summary redaction default with explicit opt-in. Evidence: `snapshot/csv/pdf/zip-reports.test.ts` + `e2e/reports.spec.ts` (Chrome + Firefox), ExifTool-clean sampled archives, 1000-file PDF at 125 ms.
+Guest standalone + ZIP-embedded CSV/PDF for JPEG/PNG/WebP/AVIF/HEIC results (and honest rows for failures/unsupported/videos/never-processed): summary CSV one-row-per-file, detailed tags ledger, PDF cover→methodology with disclosed compact mode past 120 files. Verified-removed counts derive only from verified `changes[]`; rewrites always 0/n-a; C2PA per-file status recorded as actually inspected (`detected`/`not_detected`/`not_inspected`); summary redaction default with explicit opt-in. Evidence: `snapshot/csv/pdf/zip-reports.test.ts` + `e2e/reports.spec.ts` (Chrome + Firefox), ExifTool-clean sampled archives, 1000-file PDF at 125 ms.
 
 ## 2.4 AVIF / HEIC per-operation readiness (v1.1)
 
@@ -79,7 +79,7 @@ remain custom-work targets (class C, unproven).
 | 7 | HEIC custom metadata rewriting | **C** | — | Target, outstanding | Same as AVIF op 3, HEIF-validated separately. Unproven. |
 | 8 | HEIC GPS writing | **C** | — | Target, outstanding | Same as AVIF op 4. Pending files stay `Unsupported`. Unproven. |
 | — | Brand detection (`ftyp`) | **A — proven** | Proven | Proven | `signatures.ts` + fixture bytes (`avif`/`heic` majors, `meta` presence); spoof rejected; `mif1`-only → `heif-generic` (never proven HEIC); `avis`/`msf1` → sequence-unsupported |
-| — | C2PA presence (both) | **D** | not_inspected | not_inspected | No parser integrated (blocker documented in §03/§07). Never reported absent. |
+| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal still unsupported (see Class D). |
 | — | Preview (both) | **B** | Native where browser decodes, else placeholder | Placeholder (Safari-only inline); optional lazy WASM display-decode | Display-only; preview gap never blocks file-level ops. |
 
 **Class A notes (Phase 3 completion):** reader GPS group is computed by ExifReader for JPEG/WebP
@@ -105,7 +105,7 @@ TIFF-header-offset prefix, without which ExifReader yields zero tags.
 | 7 | HEIC custom metadata rewriting | **C** | — | Target, outstanding | Same as AVIF op 3, HEIF-validated separately. Unproven. |
 | 8 | HEIC GPS writing | **C** | — | Target, outstanding | Same as AVIF op 4. Pending files stay `Unsupported`. Unproven. |
 | — | Brand detection (`ftyp`) | **A — proven** | Proven | Proven | `signatures.ts` + fixture bytes (`avif`/`heic` majors, `meta` presence); spoof rejected; `mif1`-only → `heif-generic` (never proven HEIC); `avis`/`msf1` → sequence-unsupported |
-| — | C2PA presence (both) | **D** | not_inspected | not_inspected | No parser integrated (blocker documented in §03/§07). Never reported absent. |
+| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal still unsupported (see Class D). |
 | — | Preview (both) | Proven pattern | Native where browser decodes, else placeholder | Placeholder (Safari-only inline); E2E-proven in Chrome | Display-only; preview gap never blocks file-level ops (E2E HEIC journey green) |
 
 **Class A (verified):** JPEG/PNG/WebP/AVIF inspect+clean; HEIC inspect + still-layout cleaning incl. one real-encoder layout. GeoTag_Final contains no AVIF/HEIC path (accept list JPEG/PNG/WebP only; `piexif` JPEG-only; Canvas path converts toward JPEG — explicitly disqualified by v1.1 §6.2).

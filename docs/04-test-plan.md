@@ -14,16 +14,17 @@
 ## Image inspect — Phase 2 evidence (unchanged, still valid)
 
 - JPEG: `jpeg-exif.jpg` (Make/Model/DateTimeOriginal/Orientation exact), `jpeg-gps-sw.jpg` (S/W refs, Rotate 90 CW, −5 m altitude), `jpeg-xmp-iptc.jpg` (XMP creator/rights/description + IPTC ObjectName/Keywords/By-line/Copyright/Caption exact), `jpeg-empty.jpg` (all inspected groups `not_detected`, zero indicators).
-- AI indicators: `jpeg-ai.jpg` (DigitalSourceType + CreatorTool + AIPrompt → ≥2 explicit findings with evidence); `jpeg-caption-ai.jpg` (caption “Portrait of Ai …” → zero findings — negative control green).
+- AI indicators: `jpeg-ai.jpg` (DigitalSourceType + CreatorTool + AIPrompt → ≥2 explicit findings with evidence); `jpeg-caption-ai.jpg` (caption “Portrait of Ai …” → zero findings — negative control green); **`jpeg-openai.jpg` (P0, synthetic tag: XMP CreatorTool `OpenAI GPT-Image` → exactly 1 explicit indicator, chip `OpenAI 1`)**; **`jpeg-caption-openai.jpg` (P0: caption mentions OpenAI, ordinary CreatorTool → zero findings, chip `AI 0`)**.
 - PNG: `png-text-exif.png` (Title/Author/Description/Software/Comment/zTXt/iTXt-XMP/eXIf-Orientation exact; header group technical); invalid XMP packets tolerated (group absent, parse continues).
 - WebP: `webp-exif-xmp.webp` (EXIF Make/GPS, XMP creator, VP8X technical) vs `webp-empty.webp` (honest absence).
 - AVIF: `avif-exif-xmp.avif` (brand `avif` + `meta` byte-verified; Make/GPS 12.345678,98.765432/XMP creator identical in both readers). Fixture lesson recorded: HEIF Exif items require the 4-byte TIFF-header-offset prefix or ExifReader yields zero tags.
 - HEIC: `heic-exif-gps.heic` (brand `heic`; Make TestPhone; GPS **0,0 kept as detected data**; XMP creator). Preview-independent (ArrayBuffer path, no decode).
-- Robustness: `spoof-jpg-with-png-bytes.jpg` (bytes win + warning), `jpeg-truncated.jpg` (partial + warning, no throw), `avif-truncated-box.avif` + `png-huge-length.png` (warnings, bounded walk), `random-bytes.bin`/`empty-file.bin` (failed, no throw), 64 MB/file budget enforced, C2PA `not_inspected` on every result (never absent-claimed).
+- Robustness: `spoof-jpg-with-png-bytes.jpg` (bytes win + warning), `jpeg-truncated.jpg` (partial + warning, no throw), `avif-truncated-box.avif` + `png-huge-length.png` (warnings, bounded walk), `random-bytes.bin`/`empty-file.bin` (failed, no throw), 64 MB/file budget enforced, C2PA states proven by P0 fixtures below (`not_detected` on ordinary/dummy, `detected` on signed — never absent-claimed, never fake-detected).
 - Test counts: `signatures.test.ts` (14) + `inspect.test.ts` (13) + Phase 1 suites (24) = 51 green; zero mocks of the reader.
 
 ## Image clean (Phase 3+, unchanged)
 - JPEG baseline + progressive; EXIF orientation 1 vs rotated; GPS/software/author/EXIF/IPTC/XMP/C2PA fixtures when available.
+- **P0 C2PA/OpenAI proof (executed, genuine manifests):** `signed-c2pa.jpg` (c2patool-signed JUMBF APP11, test identity) → browser `detected`, 8 tags, `Valid` + 1 untrusted-credential failure, 2 AI source-type indicators; `signed-c2pa.png` (real `caBX` chunk) → same gate; `jpeg-c2pa-tampered.jpg` (1 flipped scan-data bit) → `detected` + failures incl. `claimSignature.mismatch`, `Invalid`; `jpeg-jumbf.jpg` dummy + ordinary files → `not_detected` (preflight miss); cleaning a signed file retains APP11 → `partially_cleaned`, output re-inspects `Invalid` + 3 failures with UUID bytes intact. See `docs/09-c2pa-openai-proof-report.md` + `src/test-fixtures/README.md` for SHAs/commands.
 - PNG ±transparency; `tEXt`/`zTXt`/`iTXt`/`eXIf`/XMP; CRC validity after edit.
 - WebP lossy/lossless + EXIF/XMP; animated WebP must refuse or preserve frames.
 - **AVIF (required):** still AVIF with/without EXIF, XMP, ICC, AI-associated XMP, C2PA/UUID-JUMBF where available; alpha, HDR/`colr`, thumbnails/aux, grid/overlay refs; animated `avis` sequences handled explicitly (refuse or preserve, never corrupt); `ftyp`-brand checks (`avif`/`avis`/`mif1`); malformed/truncated ISOBMFF (incl. CVE-2026-53496/85715 regression shapes: empty `free` boxes, truncated largesize, zero-width `iloc` fields, huge item/extent counts) → `Failed` with message, queue/worker survives.
@@ -54,7 +55,7 @@
 
 ## Reports — Phase 5 evidence (all executed, none simulated)
 
-- Snapshot mapping: every status incl. cancelled/not-processed/video/never-run, GPS 0,0 + assumed-ref callouts, C2PA `not_inspected`, rewrites always 0, byte/exclusion totals honest.
+- Snapshot mapping: every status incl. cancelled/not-processed/video/never-run, GPS 0,0 + assumed-ref callouts, C2PA per-file status as actually inspected, rewrites always 0, byte/exclusion totals honest.
 - CSV: exact 36-column schema, one-row-per-file incl. failures; adversarial formula set neutralized (numeric GPS stays numeric); Unicode/emoji preserved; RFC-4180 round-trip parsed; redaction default vs opt-in proven on real GPS digits; tags ledger with group coverage rows + dedupe; cancellation mid-build tested.
 - PDF: pdf-lib parse-back (pages, title, no user data in properties); cover/overview/per-file/appendix/methodology/privacy/footer; compact auto past 120 files (disclosed); Unicode sanitize-with-count; failures-only report claims nothing; cancel tested; node 1000-file PDF 125 ms / 330 KB / 35 pages.
 - ZIP reconciliation: None preserves Phase 4 bytes; embedded reports byte-equal standalone from the same snapshot; media bytes identical across choices; traversal-safe CRC-valid archives; excluded files reported but not archived.
@@ -72,5 +73,5 @@
 - MOV/WebM listed only after equivalent validation.
 
 ## Tooling
-- Vitest: 82 tests (JPEG/PNG/WebP walkers, ISOBMFF clean incl. plain-`iprp` real layout, GPS assumed-ref + unreadable-value paths, DMS, filename sanitize, `ftyp` brands, canonical extensions, intake sniff upgrade, run-guard) + Playwright E2E: 19 tests green in installed Chrome (Desktop + Pixel 7) vs production `out/` — journeys with independent download re-reads, robustness (spoof/corrupt/animated/JUMBF), 50-file queue + cancel + stale-guard + repeated downloads + 65 MB budget + request-log locality, keyboard + mobile overflow checks.
+- Vitest: 151 tests / 17 files (adds P0 `c2pa.test.ts` preflight ladder + OpenAI/caption file fixtures + Node-gate honesty cases) + Playwright E2E: 58 tests green (desktop Chrome + Pixel 7 + Firefox incl. new `c2pa-openai` 5×2) vs production `out/` — prior journeys/robustness/queue/scale/a11y/upload coverage plus genuine-manifest `detected`, tamper-failure, dummy-`not_detected`, OpenAI-positive/negative, and signed-clean-retention proofs.
 - Fixtures: 31 committed files (30 generated + `heic-real-encoder.heic`: libheif 1.23.6 HEVC still, 64×48, SHA-256 `1ce3a75b…f1fcc2b55`, ExifTool-written EXIF/GPS/XMP; self-generated gradient pixels, nonsensitive) + `EXIFTOOL_BASELINE.txt` + `EXIFTOOL_AFTER_CLEAN.txt`. No personal GPS/serials; hand-built ISOBMFF primary item is dummy bytes (inspection-valid only); Nokia-conformance files never committed. ExifTool 13.55 + heif-convert + Pillow locally for cross-checks (never uploaded, never bundled).

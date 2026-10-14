@@ -697,7 +697,7 @@ export function cleanIsobmff(
   for (const box of suffixBoxes) {
     if (box.type === "uuid" || box.type === "jumb") {
       coverageLimited = true;
-      warnings.push(`Top-level "${box.type}" box preserved unassessed (possible JUMBF/C2PA data); coverage limited — C2PA is not inspected.`);
+      warnings.push(`Top-level "${box.type}" box preserved unassessed (possible JUMBF/C2PA data); coverage limited — JUMBF/C2PA removal is not supported.`);
       changes.push({ group: "JUMBF", key: box.type, action: "retained_unsupported", verification: "not_verified", reason: "Unassessed container data kept; coverage limited." });
     } else if (box.type !== "free" && box.type !== "skip" && box.type !== "wide") {
       coverageLimited = true;

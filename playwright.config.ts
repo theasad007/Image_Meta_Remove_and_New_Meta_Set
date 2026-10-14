@@ -42,7 +42,7 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      testMatch: /journey|reports/,
+      testMatch: /journey|reports|c2pa-openai/,
       use: { browserName: "firefox" },
     },
   ],

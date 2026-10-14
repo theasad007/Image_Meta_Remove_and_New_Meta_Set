@@ -109,6 +109,18 @@
 - Added lazy `heic-to` display decoding so the real HEIC thumbnail appears in Chrome without converting the source or cleaning output. Added official `@contentauth/c2pa-web` browser validation behind an exact Manifest Store UUID preflight; a current c2pa-rs signed fixture reports C2PA detected with nine claim tags and an AI digital-source indicator. OpenAI/ChatGPT/GPT-Image/Sora software markers are recognized only in designated software/provenance fields.
 - Verification: TypeScript and ESLint clean; 16 unit files / 142 tests pass; static production build passes; production audit has 0 vulnerabilities. Real Chrome checks confirm picker, DataTransfer drop, auto-inspection, 64px HEIC preview, signed C2PA detection, single/bulk selective cleaning and downloads. `GeoTag_Final/` was not changed.
 
+## 14 Oct 2026 — P0 C2PA/OpenAI detection proof (implemented, ACCEPT)
+
+- Baseline: git `6d8d5a4` (new repo in `AI_meta_Data_Remover/`; `.gitignore` now also covers `test-results/`, `.env*`). Codex UI preserved — zero layout/style changes.
+- Fixtures (own synthetic bases, c2patool 0.27.22 built-in test identity, ExifTool 13.55 cross-checks): `signed-c2pa.jpg` (JUMBF APP11, `4d44ecc0…`), `signed-c2pa.png` (real `caBX` chunk, `74a78e7d…`), `jpeg-c2pa-tampered.jpg` (1 flipped scan bit → `claimSignature.mismatch`, `22dd0949…`), `jpeg-openai.jpg` (synthetic `CreatorTool=OpenAI GPT-Image`, `1e2c4308…`), `jpeg-caption-openai.jpg` (caption-only negative, `2cd80de8…`). Probe lesson: `c2pa.created` without `digitalSourceType` draws `assertion.action.malformed`.
+- Browser proof (`e2e/c2pa-openai.spec.ts`, 5 tests): signed JPEG → `detected` 8 tags, `Valid` + 1 untrusted failure, 2 AI source-type indicators, chips `C2PA 8`/`AI 2`; tampered → `detected` + failures; ordinary/dummy → `not_detected`; OpenAI CreatorTool → 1 explicit + chip `OpenAI 1`; caption-only → 0 + `AI 0`; cleaning signed file → `partially cleaned`, output re-inspects `Invalid` + 3 failures with UUID intact and EXIF verified removed.
+- Fixes: 2 stale cleaner warnings reworded (`jpeg.ts:323`, `isobmff.ts:700` — no longer claim C2PA is uninspected); `export` added to preflight UUID/gate for tests (no runtime change). No removal/Firebase/GeoTag/video work.
+- Owner image NOT provided → exact reported failure not reproduced; `not implemented`/`not connected` ruled out, `metadata absent from sample` leads. Repro steps in `docs/08` §4.4 / `docs/09` §1.
+- Docs: `02` C2PA rows corrected (presence proven, removal still D), `04` P0 evidence added, `07` item 2 updated, fixture README provenance + SHAs, new `docs/09-c2pa-openai-proof-report.md`.
+- Final commands: typecheck clean; lint clean; **17 files / 151 unit pass**; build clean (3/3 static); audit 0 vulns; **58/58 E2E** (48 prior + 5 desktop + 5 Firefox) incl. all prior journeys/reports/bulk/scale.
+- Support matrix: C2PA inspection → proven (JPEG APP11 + PNG caBX preflight); C2PA removal → still unsupported; OpenAI designated-field matching → proven with negative controls.
+- Next recommendation (no auto-start): close the owner-image diagnosis with the original sample, or proceed to Phase 6 planning. STOP before any new phase or C2PA removal.
+
 ```text
 ## <date> — Phase N: <title>
 - Files changed:

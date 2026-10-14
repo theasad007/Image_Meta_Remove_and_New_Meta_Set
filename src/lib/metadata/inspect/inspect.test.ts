@@ -45,10 +45,12 @@ function tagValue(result: ImageInspectionResult, category: string, key: string):
 beforeAll(async () => {
   for (const name of [
     "jpeg-exif.jpg", "jpeg-gps-sw.jpg", "jpeg-xmp-iptc.jpg", "jpeg-ai.jpg",
-    "jpeg-caption-ai.jpg", "jpeg-empty.jpg", "png-text-exif.png",
+    "jpeg-caption-ai.jpg", "jpeg-openai.jpg", "jpeg-caption-openai.jpg",
+    "jpeg-empty.jpg", "png-text-exif.png",
     "webp-exif-xmp.webp", "webp-empty.webp", "avif-exif-xmp.avif",
     "heic-exif-gps.heic", "heic-real-encoder.heic", "spoof-jpg-with-png-bytes.jpg",
     "jpeg-truncated.jpg", "avif-truncated-box.avif",
+    "signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg",
   ]) {
     await inspect(name);
   }
@@ -123,6 +125,37 @@ describe("AI indicators (clues, never verdicts)", () => {
     const result = await inspect("jpeg-caption-ai.jpg");
     expect(result.aiIndicators).toHaveLength(0);
     expect(tagValue(result, "XMP", "description")).toMatch(/Portrait of Ai/);
+  });
+  it("flags an explicit OpenAI CreatorTool file fixture (synthetic tag)", async () => {
+    // jpeg-openai.jpg is synthetically tagged — not evidence of real OpenAI generation.
+    const result = await inspect("jpeg-openai.jpg");
+    expect(result.detectedFormat).toBe("jpeg");
+    expect(tagValue(result, "XMP", "CreatorTool")).toBe("OpenAI GPT-Image");
+    expect(result.aiIndicators).toHaveLength(1);
+    expect(result.aiIndicators[0]?.confidence).toBe("explicit");
+    expect(`${result.aiIndicators[0]?.label} ${result.aiIndicators[0]?.matchedValue}`).toMatch(/openai/i);
+  });
+  it("ignores OpenAI mentioned only in an ordinary caption", async () => {
+    const result = await inspect("jpeg-caption-openai.jpg");
+    expect(result.aiIndicators).toHaveLength(0);
+    expect(tagValue(result, "XMP", "description")).toMatch(/reading about OpenAI/);
+  });
+});
+
+describe("C2PA fixtures under Node (validator unavailable — browser E2E proves detected)", () => {
+  it("keeps signed-manifest bytes honest: EXIF readable, C2PA uninspected here", async () => {
+    for (const name of ["signed-c2pa.jpg", "signed-c2pa.png", "jpeg-c2pa-tampered.jpg"]) {
+      const result = await inspect(name);
+      // The completed→partial downgrade for uninspected C2PA lives in the
+      // browser-only withC2pa overlay (inspect.ts); under Node the EXIF/XMP
+      // result stands on its own while C2PA stays honestly uninspected.
+      expect(result.outcome).toBe("completed");
+      // Node has no Worker/WASM runtime, so the overlay cannot run here;
+      // e2e/c2pa-openai.spec.ts asserts the real detected path in Chromium.
+      expect(categoryOf(result, "C2PA / Content Credentials").status).toBe("not_inspected");
+    }
+    const jpeg = await inspect("signed-c2pa.jpg");
+    expect(tagValue(jpeg, "EXIF", "Make")).toBe("TestCam");
   });
 });
 
