@@ -47,7 +47,7 @@ interface QueueListProps {
 const TARGETS: Array<{ value: CleaningTarget; label: string; hint: string }> = [
   { value: "exif_gps", label: "EXIF + GPS", hint: "Camera, device and location data" },
   { value: "descriptive", label: "XMP / IPTC / text", hint: "Descriptions, prompts, authors and comments" },
-  { value: "ai_markers", label: "AI indicators only", hint: "Removes the EXIF/XMP/text block that supplied an AI marker. Signed C2PA is reported, not silently stripped." },
+  { value: "ai_markers", label: "AI indicators only", hint: "Removes the EXIF/XMP/text block that supplied an AI marker, plus identified C2PA stores carrying AI markers." },
 ];
 
 export default function QueueList(props: QueueListProps) {

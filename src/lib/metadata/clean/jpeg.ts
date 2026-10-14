@@ -2,9 +2,11 @@ import {
   CleanRefused,
   MetadataChange,
   fingerprint,
+  resolvesC2paRemovalTarget,
   resolvesCleaningTarget,
   type CleaningPolicy,
 } from "./types";
+import { locateJpegC2pa } from "./c2pa-locate";
 
 /**
  * Lossless JPEG metadata cleaner (Phase 3).
@@ -316,13 +318,40 @@ export function cleanJpeg(input: Uint8Array, policy: CleaningPolicy): JpegCleanO
     if (removeDescriptive) changes.push(change("JPEG", "COM comment", "removed", "Comment segment dropped."));
     else out.push(raw);
   }
-  // APP11 / JUMBF: never strip blindly.
-  for (const raw of seg.app11) {
-    out.push(raw);
-    coverageLimited = true;
-    warnings.push("APP11 (possible JUMBF/C2PA container data) retained unassessed; ordinary cleaning does not remove signed provenance.");
-    changes.push(change("JUMBF", "APP11 segment", "retained_unsupported", "Unassessed container data kept; coverage limited."));
-  }
+  // APP11 / JUMBF: remove structurally identified C2PA manifest stores only.
+  // Identification follows the official grouping (EN box-instance + Z packet
+  // order + first-segment marker); unrelated APP11 is always retained.
+  const removeC2pa = resolvesC2paRemovalTarget(policy);
+  const c2paGroups = locateJpegC2pa(seg.app11.map((raw) => raw.slice(4)));
+  const c2paMemberOf = new Map<number, number>();
+  c2paGroups.forEach((group, groupId) => {
+    for (const index of group.indices) c2paMemberOf.set(index, groupId);
+  });
+  seg.app11.forEach((raw, index) => {
+    const groupId = c2paMemberOf.get(index);
+    if (groupId === undefined) {
+      out.push(raw);
+      coverageLimited = true;
+      warnings.push("APP11 (possible JUMBF/C2PA container data) retained unassessed; ordinary cleaning does not remove signed provenance.");
+      changes.push(change("JUMBF", "APP11 segment", "retained_unsupported", "Unassessed container data kept; coverage limited."));
+      return;
+    }
+    const group = c2paGroups[groupId];
+    const count = group?.indices.length ?? 0;
+    const first = index === group?.indices[0];
+    if (!removeC2pa) {
+      out.push(raw);
+      if (first) {
+        coverageLimited = true;
+        warnings.push("Identified C2PA APP11 store retained: outside the selected cleaning scope.");
+        changes.push(change("C2PA", `APP11 C2PA manifest store (${count} segment(s))`, "retained_unsupported", "C2PA removal needs the descriptive (XMP/IPTC/text) or AI-indicator scope."));
+      }
+      return;
+    }
+    if (first) {
+      changes.push(change("C2PA", `APP11 C2PA manifest store (${count} segment(s), EN ${group?.enHex ?? "??"})`, "removed", "Structurally identified C2PA APP11 group dropped; unrelated APP11 kept."));
+    }
+  });
   // APP2: keep ICC + MPF-aware conservatism.
   for (const entry of seg.app2) {
     if (entry.header.startsWith("ICC_PROFILE")) {

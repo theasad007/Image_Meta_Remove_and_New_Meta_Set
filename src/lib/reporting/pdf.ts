@@ -313,7 +313,7 @@ export async function buildReportPdf(
   for (const line of [
     "Inspector: format byte-sniffing + ExifReader reads (EXIF/GPS/XMP/IPTC/PNG/WebP/ISOBMFF groups); cleaner: lossless segment/chunk/item rebuilds; verifier: signature + structure + re-inspection + payload fingerprint per file.",
     "'Removed' means observed before and confirmed absent after; 'retained (technical)' covers orientation/ICC/color/display structures; 'retained (unsupported)' covers unassessed APPn/chunks/uuid/JUMBF; 'not detected' requires completed inspection; 'not inspected' (C2PA/video paths) is never absence.",
-    "C2PA / Content Credentials: browser validation status is recorded when available; standard metadata cleaning does not silently remove a signed manifest, and removing XMP never proves manifest removal.",
+    "C2PA / Content Credentials: browser validation status is recorded when available; identified embedded manifest stores are removed with re-inspection proof, unproven JUMBF/uuid data stays retained; removing XMP never proves manifest removal.",
     "No guarantee about invisible watermarks, off-file provenance registries, platform AI labels, or image-content AI signals. Cleaning never claims AI-origin verdicts.",
     "Browser capacity: 64 MB/file inspection/cleaning budget; ZIP archives past 4 GiB are refused (no Zip64); batch size is device-limited, never paywalled.",
     `PDF text: ${ctx.glyphReplacements} character(s) outside the PDF standard-font encoding shown as '?' (exact values remain in metadata-report.csv, UTF-8).`,

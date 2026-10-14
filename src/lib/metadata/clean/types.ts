@@ -45,6 +45,22 @@ export function resolvesCleaningTarget(
   return [...groups].some((group) => group.includes("XMP") || group.includes("IPTC") || group.includes("TEXT"));
 }
 
+/**
+ * Whether structurally identified C2PA manifest stores are in scope for
+ * removal. C2PA carries provenance/descriptive claims and AI-generation
+ * signals, so an explicit `descriptive` selection covers it — plus the
+ * `ai_markers` scope when the current file's own AI evidence names C2PA.
+ * An EXIF+GPS-only (or AI-only without C2PA evidence) selection
+ * intentionally preserves C2PA (retained with an explicit scope reason,
+ * never silently removed).
+ */
+export function resolvesC2paRemovalTarget(policy: CleaningPolicy): boolean {
+  const targets = policy.targets ?? DEFAULT_CLEANING_TARGETS;
+  if (targets.includes("descriptive")) return true;
+  if (!targets.includes("ai_markers")) return false;
+  return (policy.aiEvidenceGroups ?? []).some((group) => group.toLowerCase().includes("c2pa"));
+}
+
 export type ChangeAction =
   | "removed"
   | "retained_technical"

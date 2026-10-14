@@ -31,7 +31,7 @@
 - **PNG text chunks** (`tEXt`/`zTXt`/`iTXt`, XMP, `eXIf`).
 - **WebP RIFF chunks** (`EXIF`, `XMP `, ICC).
 - **AVIF/HEIC (ISOBMFF):** validate `ftyp` brands (not extension), `meta`/`hdlr`/`pitm`/`iinf`/`infe`/`iloc`/`iprp`/`mdat`/`idat`, item references, auxiliary/thumbnail/grid/overlay items, UUID/JUMBF boxes. AVIF and HEIC share the container shape but are validated independently. Sequences (`msf1`/`heis`, `moov`/`udta`, no `meta`) are out of scope → refuse as `Unsupported`, never corrupt.
-- **C2PA / JUMBF** — presence vs cryptographic validation distinguished (browser validator reports both; test-identity fixtures show `Valid` + untrusted-credential failure vs `Invalid` + mismatch after tampering/cleaning); removal NOT implemented — retained JUMBF/`uuid` forces `partially_cleaned`.
+- **C2PA / JUMBF** — presence vs cryptographic validation distinguished (browser validator reports both; test-identity fixtures show `Valid` + untrusted-credential failure vs `Invalid` + mismatch after tampering/cleaning); **removal implemented per format below** — identified stores are dropped and proven absent (`not_detected` on re-inspection); unproven JUMBF/`uuid` still forces `partially_cleaned`.
 - **Video container/track tags** (encoder, creation, title, location, `udta`/`meta`/`ilst`, rotation, tracks).
 - **AI indicators** — heuristic strings only, never verdicts.
 
@@ -79,7 +79,7 @@ remain custom-work targets (class C, unproven).
 | 7 | HEIC custom metadata rewriting | **C** | — | Target, outstanding | Same as AVIF op 3, HEIF-validated separately. Unproven. |
 | 8 | HEIC GPS writing | **C** | — | Target, outstanding | Same as AVIF op 4. Pending files stay `Unsupported`. Unproven. |
 | — | Brand detection (`ftyp`) | **A — proven** | Proven | Proven | `signatures.ts` + fixture bytes (`avif`/`heic` majors, `meta` presence); spoof rejected; `mif1`-only → `heif-generic` (never proven HEIC); `avis`/`msf1` → sequence-unsupported |
-| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal still unsupported (see Class D). |
+| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal proven per format below (C2PA-removal milestone). |
 | — | Preview (both) | **B** | Native where browser decodes, else placeholder | Placeholder (Safari-only inline); optional lazy WASM display-decode | Display-only; preview gap never blocks file-level ops. |
 
 **Class A notes (Phase 3 completion):** reader GPS group is computed by ExifReader for JPEG/WebP
@@ -92,7 +92,7 @@ Unsupported/Partial — no global HEIC claim). Fixture quirk:
 hand-built ISOBMFF carries a dummy 8-byte primary item (box-level
 fixtures, not decodability proofs); Exif item layout uses the spec's 4-byte
 TIFF-header-offset prefix, without which ExifReader yields zero tags.
-**Class D (blockers/unproven):** image sequences (`msf1`/`heis`, `moov`-based) — refuse, never corrupt; grid/overlay/aux edge cases; `colr`/HDR preservation proof; C2PA/JUMBF removal in ISOBMFF; HEVC-patent boundary for any bundled decoder; `iloc`-near-EOF memory budgets; iPhone-original HEIC wanted as an extra fixture.
+**Class D (blockers/unproven):** image sequences (`msf1`/`heis`, `moov`-based) — refuse, never corrupt; grid/overlay/aux edge cases; `colr`/HDR preservation proof; C2PA stores nested inside `meta` (non-top-level `uuid`) and unknown-purpose C2PA boxes (retained + partial by design); HEVC-patent boundary for any bundled decoder; `iloc`-near-EOF memory budgets; iPhone-original HEIC wanted as an extra fixture.
 
 | # | Operation | Class | AVIF | HEIC | Evidence (Phase 3 completion) |
 |---|---|---|---|---|---|
@@ -105,8 +105,44 @@ TIFF-header-offset prefix, without which ExifReader yields zero tags.
 | 7 | HEIC custom metadata rewriting | **C** | — | Target, outstanding | Same as AVIF op 3, HEIF-validated separately. Unproven. |
 | 8 | HEIC GPS writing | **C** | — | Target, outstanding | Same as AVIF op 4. Pending files stay `Unsupported`. Unproven. |
 | — | Brand detection (`ftyp`) | **A — proven** | Proven | Proven | `signatures.ts` + fixture bytes (`avif`/`heic` majors, `meta` presence); spoof rejected; `mif1`-only → `heif-generic` (never proven HEIC); `avis`/`msf1` → sequence-unsupported |
-| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal still unsupported (see Class D). |
+| — | C2PA presence (both) | **A — proven (P0)** | Proven (JPEG APP11) | Proven (PNG caBX preflight; AVIF/HEIC via shared gate) | Browser validator `@contentauth/c2pa-web` integrated; `signed-c2pa.jpg` → `detected` (8 tags, Valid + 1 untrusted-credential failure), `signed-c2pa.png` preflights via real `caBX`; dummy markers → `not_detected`, never absent-claimed. Removal proven per format below (C2PA-removal milestone). |
 | — | Preview (both) | Proven pattern | Native where browser decodes, else placeholder | Placeholder (Safari-only inline); E2E-proven in Chrome | Display-only; preview gap never blocks file-level ops (E2E HEIC journey green) |
 
 **Class A (verified):** JPEG/PNG/WebP/AVIF inspect+clean; HEIC inspect + still-layout cleaning incl. one real-encoder layout. GeoTag_Final contains no AVIF/HEIC path (accept list JPEG/PNG/WebP only; `piexif` JPEG-only; Canvas path converts toward JPEG — explicitly disqualified by v1.1 §6.2).
-**Class D (blockers/unproven):** image sequences (`msf1`/`heis`, `moov`-based) — refuse, never corrupt; grid/overlay/aux/thumbnail/multi-image edge cases; C2PA/JUMBF removal in ISOBMFF; HEVC-patent boundary for any bundled decoder; `iloc`-near-EOF memory budgets; iPhone-original (Apple-encoder) HEIC still wanted as an extra layout data point.
+**Class D (blockers/unproven):** image sequences (`msf1`/`heis`, `moov`-based) — refuse, never corrupt; grid/overlay/aux/thumbnail/multi-image edge cases; C2PA stores nested inside `meta` and unknown-purpose C2PA boxes (retained + partial by design); HEVC-patent boundary for any bundled decoder; `iloc`-near-EOF memory budgets; iPhone-original (Apple-encoder) HEIC still wanted as an extra layout data point.
+
+## 2.7 C2PA removal (milestone 14 Oct 2026 — proven per format)
+
+**Embedding models used** (C2PA Technical Specification v2.4, Appendix A.3 for
+JPEG APP11 / PNG `caBX` / WebP `C2PA`, Appendix A.5 for BMFF top-level `uuid`;
+cross-checked against c2pa-rs `sdk/src/asset_handlers/{jpeg_io,png_io,riff_io,bmff_io}.rs`
+grouping/deletion semantics plus byte dumps of official-tool outputs):
+
+- **JPEG:** APP11 `CI="JP"`, EN box-instance, Z packet sequence; group start
+  has `c2pa` at payload[24..28]; continuations share EN with strictly
+  increasing Z and repeat the store LBOX+TBOX. Engine: `locateJpegC2pa`
+  (`src/lib/metadata/clean/c2pa-locate.ts`), drop whole groups in `cleanJpeg`.
+- **PNG:** single-chunk JUMBF store in `caBX` (LBOX==length, TBOX `jumb`,
+  store UUID at +16). Engine: `locatePngC2pa`, drop in `cleanPng`. Unproven
+  `caBX` is always retained, even aggressive.
+- **WebP:** RIFF `C2PA` chunk with the same JUMBF proof; no VP8X flag invented.
+  Engine: `locateWebpC2pa`, drop in `cleanWebp` with RIFF size recompute.
+- **AVIF/HEIC:** top-level `uuid` with extended type
+  `d8fec3d6-1b0e-483c-9297-5828877ec481` (≠ inner store UUID), known purpose
+  (`manifest`/`merkle`/`original`/`update`), store UUID within content.
+  Engine: `locateIsobmffC2pa`, elide in `cleanIsobmff` with full
+  meta/`iloc`/`mdat` offset recompute. Generic `uuid` never counts as C2PA.
+
+**Scope:** removal runs under `descriptive` or `ai_markers`-with-C2PA-evidence
+(`resolvesC2paRemovalTarget`); EXIF+GPS-only selections retain identified
+stores with an explicit scope reason. Verification: `C2PA` is a target group,
+so absence-after must be proven (`not_detected` via real re-inspection);
+`detected`/`not_inspected` after cleaning fails closed with output withheld.
+
+| Format | Removal | Proof |
+|---|---|---|
+| JPEG | **Proven** | `signed-c2pa.jpg` (1 seg), `jpeg-c2pa-multi.jpg` (3 segs EN 0211), foreign-APP11 retained, truncated-store cleared, dummy/COM-text untouched; scan bytes identical; c2patool “No claim found” + ExifTool JUMBF-free on all outputs |
+| PNG | **Proven** | `signed-c2pa.png` caBX dropped, IDAT identical; forged caBX retained (both policies); stray IDAT bytes untouched |
+| WebP | **Proven** | `webp-c2pa-signed.webp` chunk dropped, VP8 identical, RIFF re-validated; forged chunk retained |
+| AVIF | **Proven** | `avif-c2pa-signed.avif` uuid dropped, item payloads identical, structure re-validated, Pillow-decodes; generic uuid retained |
+| HEIC | **Proven** | `heic-c2pa-signed.heic` (real HEVC, heif-enc) uuid dropped, decode identical pre/post clean; generic uuid retained |

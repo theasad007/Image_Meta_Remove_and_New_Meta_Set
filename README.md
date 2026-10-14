@@ -42,6 +42,15 @@ security behavior.
 - Still disabled and labeled Planned: Firebase sign-in, custom rewrite,
   GeoTag, video cleaning.
 
+## C2PA removal milestone (14 Oct 2026)
+
+- Structurally identified embedded C2PA manifest stores are **removed**
+  (JPEG APP11 groups, PNG `caBX`, WebP `C2PA`, AVIF/HEIC top-level `uuid`
+  with C2PA purpose), then proven absent by structural scan plus real
+  validator re-inspection (`not_detected`). Unproven JUMBF/`uuid` data is
+  always retained; removal follows the selected descriptive/AI scope.
+  Details: `docs/02-support-matrix.md`, `docs/04-test-plan.md`.
+
 ## Structure
 
 ```text

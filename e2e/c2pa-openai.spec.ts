@@ -139,22 +139,19 @@ test("OpenAI CreatorTool is flagged; caption-only mentions are ignored", async (
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
 });
 
-test("cleaning a signed file retains provenance: partial, never silent strip", async ({ page }) => {
+test("cleaning a signed file removes the manifest with verification", async ({ page }) => {
   await upload(page, ["signed-c2pa.jpg"]);
   await row(page, "signed-c2pa.jpg").getByRole("button", { name: "Remove metadata" }).click();
   const result = page.locator('[data-testid="before-after-panel"]');
   await result.waitFor();
-  // APP11/JUMBF is retained by design, so verified_clean is unreachable here.
-  await expect(result).toContainText(/partially cleaned/i);
+  // The manifest store is gone: verified removal, not a silent strip.
+  await expect(result).toContainText(/verified clean/i);
   await expect(result).toContainText(/C2PA/i);
-  // Re-inspection of the output is itself honest: EXIF removal breaks the
-  // asset hash, so the retained manifest now reports more failures and an
-  // Invalid validation state instead of silently staying Valid.
-  await expect(result).toContainText("Validation State");
-  await expect(result).toContainText("Invalid");
-  await expect(result).toContainText("reported 3 failures");
-  // The downloaded bytes still carry the manifest store (provenance kept),
-  // while the plain EXIF block is gone.
+  // Before side keeps the original evidence (Valid + 1 untrusted-credential
+  // failure); after side proves absence through real re-inspection.
+  await expect(result).toContainText("reported 1 failure");
+  await expect(result).toContainText("not detected");
+  // Byte-level proof on the download: no store UUID anywhere, EXIF gone.
   const downloadPromise = page.waitForEvent("download");
   await page.locator('[data-testid="download-cleaned"]').click();
   const download = await downloadPromise;
@@ -164,11 +161,80 @@ test("cleaning a signed file retains provenance: partial, never silent strip", a
     0x63, 0x32, 0x70, 0x61, 0x00, 0x11, 0x00, 0x10,
     0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
   ]);
-  expect(bytes.includes(uuid)).toBe(true);
+  expect(bytes.includes(uuid)).toBe(false);
   const tags = (await ExifReader.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), {
     expanded: true,
     async: true,
   })) as unknown as Record<string, unknown>;
   expect(Object.keys((tags["exif"] as Record<string, unknown>) ?? {})).toHaveLength(0);
+  expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
+});
+
+test("bulk ZIP and CSV prove removal across formats", async ({ page }) => {
+  await upload(page, ["signed-c2pa.jpg", "webp-c2pa-signed.webp"]);
+  await page.locator('[data-testid="batch-clean-all"]').click();
+  await expect(page.locator('[data-testid="batch-progress"]')).toContainText(/2 of 2 files processed/, {
+    timeout: 180000,
+  });
+  // ZIP entries carry no manifest store and stay EXIF-clean.
+  const zipPromise = page.waitForEvent("download");
+  await page.locator('[data-testid="download-zip"]').click();
+  const zipDownload = await zipPromise;
+  const zipPath = (await zipDownload.path()) as string;
+  const { unzipSync } = await import("fflate");
+  const entries = unzipSync(new Uint8Array(fs.readFileSync(zipPath)));
+  const names = Object.keys(entries);
+  expect(names.length).toBe(2);
+  const uuid = Buffer.from([
+    0x63, 0x32, 0x70, 0x61, 0x00, 0x11, 0x00, 0x10,
+    0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+  ]);
+  for (const name of names) {
+    expect(name.startsWith("images/")).toBe(true);
+    const data = Buffer.from(entries[name] as Uint8Array);
+    expect(data.includes(uuid), `${name} store bytes`).toBe(false);
+  }
+  // CSV records the same verified result: C2PA After is not_detected.
+  const csvPromise = page.waitForEvent("download");
+  await page.locator('[data-testid="download-csv"]').click();
+  const csvDownload = await csvPromise;
+  const csvPath = (await csvDownload.path()) as string;
+  const text = fs.readFileSync(csvPath, "utf-8");
+  expect(text).toContain("C2PA After");
+  const parseRow = (line: string): string[] => {
+    const cells: string[] = [];
+    let cell = "";
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i] as string;
+      if (quoted) {
+        if (char === '"') {
+          if (line[i + 1] === '"') {
+            cell += '"';
+            i += 1;
+          } else quoted = false;
+        } else cell += char;
+      } else if (char === '"') quoted = true;
+      else if (char === ",") {
+        cells.push(cell);
+        cell = "";
+      } else cell += char;
+    }
+    cells.push(cell);
+    return cells;
+  };
+  const lines = text.replace(/^\uFEFF/, "").split("\n").filter((line) => line.length > 0);
+  const header = parseRow(lines[0] ?? "");
+  const afterIndex = header.findIndex((cell) => cell.includes("C2PA After"));
+  const statusIndex = header.findIndex((cell) => cell.includes("Overall Status"));
+  expect(afterIndex).toBeGreaterThan(-1);
+  expect(statusIndex).toBeGreaterThan(-1);
+  const rows = lines.slice(1).filter((line) => line.includes("signed-c2pa") || line.includes("webp-c2pa-signed"));
+  expect(rows).toHaveLength(2);
+  for (const line of rows) {
+    const cells = parseRow(line);
+    expect(cells[afterIndex]).toMatch(/not_detected/);
+    expect(cells[statusIndex]).toBe("verified_clean");
+  }
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
 });

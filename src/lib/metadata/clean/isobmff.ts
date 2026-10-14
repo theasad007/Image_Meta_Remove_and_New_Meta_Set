@@ -2,9 +2,11 @@ import {
   CleanRefused,
   MetadataChange,
   fingerprint,
+  resolvesC2paRemovalTarget,
   resolvesCleaningTarget,
   type CleaningPolicy,
 } from "./types";
+import { describeIsobmffUuid, locateIsobmffC2pa } from "./c2pa-locate";
 
 /**
  * Native AVIF/HEIC (ISOBMFF) metadata cleaner (Phase 3).
@@ -581,7 +583,34 @@ export function cleanIsobmff(
     }
   }
 
-  if (removable.size === 0) {
+  // C2PA top-level uuid stores (spec A.5): identified by box UUID +
+  // purpose + inner store marker. Dropped only when proven AND in scope;
+  // C2PA-typed but unproven boxes are always retained (never blindly cut).
+  const removeC2pa = resolvesC2paRemovalTarget(policy);
+  const c2pa = locateIsobmffC2pa(topLevel);
+  const c2paDrop = new Set<number>();
+  const c2paUnproven = new Set<number>(c2pa.unproven);
+  for (const index of c2pa.identified) {
+    const box = topLevel[index];
+    const purpose = box ? describeIsobmffUuid(box.payload)?.purpose ?? "?" : "?";
+    if (removeC2pa) {
+      c2paDrop.add(index);
+      changes.push({ group: "C2PA", key: `top-level uuid C2PA manifest store (purpose "${purpose}", ${box?.size ?? 0} bytes)`, action: "removed", verification: "not_verified", reason: "Structurally proven C2PA uuid box dropped; image items and offsets recomputed." });
+    } else {
+      coverageLimited = true;
+      warnings.push(`Identified C2PA uuid store (purpose "${purpose}") retained: outside the selected cleaning scope.`);
+      changes.push({ group: "C2PA", key: `top-level uuid C2PA manifest store (purpose "${purpose}")`, action: "retained_unsupported", verification: "not_verified", reason: "C2PA removal needs the descriptive (XMP/IPTC/text) or AI-indicator scope." });
+    }
+  }
+  for (const index of c2pa.unproven) {
+    const box = topLevel[index];
+    const purpose = box ? describeIsobmffUuid(box.payload)?.purpose ?? "?" : "?";
+    coverageLimited = true;
+    warnings.push(`C2PA-typed uuid box (purpose "${purpose}") failed structural proof; retained unassessed — C2PA removal is not supported for this layout.`);
+    changes.push({ group: "C2PA", key: "top-level uuid box", action: "retained_unsupported", verification: "not_verified", reason: "C2PA-typed box failed content proof; kept rather than risk deleting unknown data." });
+  }
+
+  if (removable.size === 0 && c2paDrop.size === 0) {
     return {
       data: input.slice(),
       changes: [{ group: "ISOBMFF", key: "Selected Exif/XMP items", action: "unchanged", verification: "not_verified", reason: "No metadata items matched the selected removal types." }],
@@ -661,10 +690,15 @@ export function cleanIsobmff(
   const metaSizeWithPlaceholder = 8 + 4 + metaChildrenParts.reduce((sum, part) => sum + part.bytes.length, 0);
   // Offsets: ftyp + meta + (kept top-level boxes before mdat?) — rebuild keeps
   // original top-level order; mdat position depends on preceding boxes.
+  // Dropped C2PA uuid boxes are excluded so iloc offsets recompute cleanly.
   const mdatIndex = topLevel.findIndex((box) => box.type === "mdat");
-  const prefixBoxes = topLevel.slice(0, mdatIndex);
-  const suffixBoxes = topLevel.slice(mdatIndex + 1);
-  const prefixSize = prefixBoxes.reduce((sum, box) => sum + (box.type === "meta" ? metaSizeWithPlaceholder : box.size), 0);
+  const keptPrefix = (box: (typeof topLevel)[number], index: number) =>
+    index < mdatIndex && !c2paDrop.has(index);
+  let prefixSize = 0;
+  topLevel.forEach((box, index) => {
+    if (!keptPrefix(box, index)) return;
+    prefixSize += box.type === "meta" ? metaSizeWithPlaceholder : box.size;
+  });
   const mdatDataStart = prefixSize + 8; // + mdat header
   let cursor = mdatDataStart;
   const finalIlocItems = mdatPlan.map((p) => {
@@ -681,23 +715,33 @@ export function cleanIsobmff(
   const finalMdat = sizedBox("mdat", concatBytes(mdatPlan.map((p) => p.payload)));
   const outParts: Uint8Array[] = [];
   const KNOWN_TOP_LEVEL = new Set(["ftyp", "meta", "mdat", "free", "skip", "wide"]);
-  for (const box of prefixBoxes) {
+  topLevel.forEach((box, index) => {
+    if (index >= mdatIndex) return;
+    if (c2paDrop.has(index)) return; // removal already recorded above
     if (box.type === "meta") {
       outParts.push(finalMeta);
-      continue;
+      return;
     }
-    if (!KNOWN_TOP_LEVEL.has(box.type)) {
+    // C2PA-typed but unproven boxes keep their specific record (pushed
+    // above); only truly unknown types get the generic one.
+    if (!c2paUnproven.has(index) && !KNOWN_TOP_LEVEL.has(box.type)) {
       coverageLimited = true;
       warnings.push(`Top-level "${box.type}" box preserved unassessed; coverage limited.`);
       changes.push({ group: "ISOBMFF", key: box.type, action: "retained_unsupported", verification: "not_verified", reason: "Unknown top-level box kept; not assessed." });
     }
     outParts.push(input.slice(box.start, box.start + box.size));
-  }
+  });
   outParts.push(finalMdat);
-  for (const box of suffixBoxes) {
+  topLevel.forEach((box, index) => {
+    if (index <= mdatIndex) return;
+    if (c2paDrop.has(index)) return; // removal already recorded above
+    if (c2paUnproven.has(index)) {
+      outParts.push(input.slice(box.start, box.start + box.size));
+      return; // specific C2PA record already pushed; no generic duplicate
+    }
     if (box.type === "uuid" || box.type === "jumb") {
       coverageLimited = true;
-      warnings.push(`Top-level "${box.type}" box preserved unassessed (possible JUMBF/C2PA data); coverage limited — JUMBF/C2PA removal is not supported.`);
+      warnings.push(`Top-level "${box.type}" box preserved unassessed (possible JUMBF/C2PA data); coverage limited.`);
       changes.push({ group: "JUMBF", key: box.type, action: "retained_unsupported", verification: "not_verified", reason: "Unassessed container data kept; coverage limited." });
     } else if (box.type !== "free" && box.type !== "skip" && box.type !== "wide") {
       coverageLimited = true;
@@ -705,7 +749,7 @@ export function cleanIsobmff(
       changes.push({ group: "ISOBMFF", key: box.type, action: "retained_unsupported", verification: "not_verified", reason: "Unknown top-level box kept; not assessed." });
     }
     outParts.push(input.slice(box.start, box.start + box.size));
-  }
+  });
   changes.push({ group: "ISOBMFF", key: `structure (${kind} ftyp/meta/mdat)`, action: "retained_technical", verification: "not_verified", reason: "Container signature, primary item, color/property boxes and encoded payloads preserved." });
   const rebuilt = concatBytes(outParts);
   if (inputTrailing.length > 0) {

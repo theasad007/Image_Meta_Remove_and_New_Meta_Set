@@ -58,6 +58,17 @@ Pixel-equality evidence (Pillow decode before/after): recorded in
 | `jpeg-openai.jpg` | **Synthetic OpenAI tag (NOT real provenance):** XMP CreatorTool `OpenAI GPT-Image` → exactly 1 explicit indicator, row chip `OpenAI 1` |
 | `jpeg-caption-openai.jpg` | Caption `A visitor reading about OpenAI at the market`, ordinary CreatorTool → **zero** indicators, chip `AI 0` (OpenAI negative control) |
 | `expired-cert.jpg` | **Expired-credential fixture (test identity):** own synthetic base signed under a locally minted ES256 cert valid Jan 2024 only (EE←intermediate←root, faketime-assisted signing); browser reports `detected` + `Invalid` with `signingCredential.expired` + `signingCredential.untrusted` — the same shape as real expired-signer files (e.g. older ChatGPT PNG exports). SHA-256 `c168ec85…bb02b59` (36,324 B) |
+| `jpeg-c2pa-multi.jpg` | **Multi-segment store:** c2patool-signed (100 KB custom assertion forces 3 APP11, EN `0211`, Z 1–3 with duplicated LBOX/TBOX); `Valid`. All parts removed as one group |
+| `jpeg-c2pa-foreign-app11.jpg` | Multi-segment store + interleaved foreign APP11 (`UNRELATED-DATA`, different EN): C2PA parts removed, foreign retained |
+| `jpeg-c2pa-truncated-store.jpg` | Multi-segment store minus its last part: present parts removed, nothing left behind |
+| `jpeg-com-c2pa-text.jpg` | COM comment mentioning “c2pa”, no APP11: no phantom C2PA event (negative control) |
+| `png-c2pa-forged-cabx.png` | `caBX` chunk with valid CRC but garbage payload: fails structural proof → always retained, even aggressive (negative) |
+| `png-c2pa-stray-cabx.png` | `caBX` byte string inside IDAT pixel bytes (decodable): chunk-walk never false-fires; IDAT preserved (negative) |
+| `webp-c2pa-signed.webp` | c2patool-signed real WebP (Pillow-decodable, `Valid`): RIFF `C2PA` chunk removed, VP8 intact |
+| `webp-c2pa-forged.webp` | `C2PA` chunk with garbage payload: always retained (negative) |
+| `avif-c2pa-signed.avif` | c2patool-signed real-encoder AVIF (Pillow-decodable 32×24, `Valid`): top-level C2PA `uuid` (purpose `manifest`) dropped, items/offsets recomputed |
+| `avif-uuid-unrelated.avif` | Trailing synthetic `uuid` (non-C2PA type): retained (negative, mirrors `heic-uuid.heic`) |
+| `heic-c2pa-signed.heic` | c2patool-signed real HEVC still from `heif-enc` (decodable 64×48, `Valid`): C2PA `uuid` dropped, decode identical |
 
 ## P0 C2PA/OpenAI fixtures — provenance (NOT from `gen-fixtures.py`)
 
@@ -78,6 +89,17 @@ SHA-256 of the committed bytes:
 74a78e7d6e50f83911a1d7bc556fc2142e5cd1e719b205f981d9e8f30fa3a68d  signed-c2pa.png
 22dd094935dbc92ab47458a06868018d47d24e1db0fe1379f4454cf3e975ba3e  jpeg-c2pa-tampered.jpg
 c168ec856e2147c8b58fdf449877716e152fe3be21cb7f1335b078242bb02b59  expired-cert.jpg
+0e9e25ce833a2f8c9e87ea188e252a6d66fe2eefe4ede97c72e10353ef106a28  jpeg-c2pa-multi.jpg
+040e505b5e6abb2b72704b89c17fc66de9a7023e9a3fed22cb5feef3fead4a1b  jpeg-c2pa-foreign-app11.jpg
+ae80bb687433c54d7b7415ce90ed69300f04d1ff05df1508fe5347971132ce90  jpeg-c2pa-truncated-store.jpg
+fe0318e4f100f1929f350c352ebf561bc7ac7ab60ca379a70cbad2ba1574e9c2  jpeg-com-c2pa-text.jpg
+08ad2cbcef67737d30d8a3a51d6be20d410f1257fbefe2e5ef2bdd73eba90251  png-c2pa-forged-cabx.png
+8482e7fa0c43fe49c34ab963e9365f3a7118bb4474228687c9d25bde6e28ae7a  png-c2pa-stray-cabx.png
+0f07b66fb2b4cd19a053dd215ccd85e036e602b72484b5a2e56d0dcb0e5d0fa2  webp-c2pa-forged.webp
+8224d9277890614ff67e1d1a1099a13cf5ea399149c305ef8112936b1daae8f0  avif-uuid-unrelated.avif
+62f234ae2533ea9ecd5e2a6a46c93a15b42931e001240c3abb384e2cc63ee3c1  webp-c2pa-signed.webp
+8dfcfec02a15eadd1ee2f28f5a805a54b7b67b8412593faabe4d4ada02bb7a7c  avif-c2pa-signed.avif
+7864ea7e5feb94e83fc8338d3cf94900793df3baec568464c28f9fb370e1dea3  heic-c2pa-signed.heic
 ```
 
 Independent verification (local only): `c2patool <file>` (manifest,

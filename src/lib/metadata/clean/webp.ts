@@ -2,9 +2,11 @@ import {
   CleanRefused,
   MetadataChange,
   fingerprint,
+  resolvesC2paRemovalTarget,
   resolvesCleaningTarget,
   type CleaningPolicy,
 } from "./types";
+import { locateWebpC2pa } from "./c2pa-locate";
 
 /**
  * Lossless WebP metadata cleaner (Phase 3).
@@ -102,7 +104,33 @@ export function cleanWebp(input: Uint8Array, policy: CleaningPolicy): WebpCleanO
 
   const kept: { id: string; data: Uint8Array }[] = [];
   let removedCount = 0;
-  for (const chunk of chunks) {
+  // C2PA chunk carriers: identified by JUMBF structure; unproven C2PA
+  // chunks are always retained, even under aggressive mode. No VP8X C2PA
+  // flag exists or is invented — only the chunk is removed.
+  const removeC2pa = resolvesC2paRemovalTarget(policy);
+  const c2pa = locateWebpC2pa(chunks);
+  const c2paIdentified = new Set(c2pa.identified);
+  const c2paUnproven = new Set(c2pa.unproven);
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    if (c2paIdentified.has(chunkIndex)) {
+      if (removeC2pa) {
+        removedCount += 1;
+        changes.push({ group: "C2PA", key: `C2PA manifest store chunk (${chunk.size} bytes)`, action: "removed", verification: "not_verified", reason: "Structurally proven C2PA chunk dropped; VP8/VP8L/alpha payloads untouched." });
+        continue;
+      }
+      kept.push({ id: chunk.id, data: chunk.data });
+      coverageLimited = true;
+      warnings.push("Identified C2PA chunk retained: outside the selected cleaning scope.");
+      changes.push({ group: "C2PA", key: "C2PA manifest store chunk", action: "retained_unsupported", verification: "not_verified", reason: "C2PA removal needs the descriptive (XMP/IPTC/text) or AI-indicator scope." });
+      continue;
+    }
+    if (c2paUnproven.has(chunkIndex)) {
+      kept.push({ id: chunk.id, data: chunk.data });
+      coverageLimited = true;
+      warnings.push(`Unproven C2PA chunk retained; coverage limited (never dropped blindly, even when aggressive).`);
+      changes.push({ group: "C2PA", key: "C2PA chunk", action: "retained_unsupported", verification: "not_verified", reason: "C2PA chunk failed structural proof; kept rather than risk deleting unknown data." });
+      continue;
+    }
     if (chunk.id === "EXIF") {
       if (removeExif) {
         removedCount += 1;

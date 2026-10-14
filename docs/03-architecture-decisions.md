@@ -10,7 +10,7 @@
 | Image inspect (read-only) | **ExifReader 4.50.0 (installed Phase 2)** primary (MPL-2.0, 0 deps, Healthy, ~172k weekly) | Verified 13 Oct 2026: npm `latest` = 4.50.0 at install; built-in TS types; DataView browsers; JPEG EXIF/IPTC/XMP/ICC; PNG EXIF(eXIf)/IPTC/XMP/ICC (compressed chunks need Compression Streams + `async:true`); WebP EXIF/XMP/ICC + IPTC-via-embedded-Exif; **AVIF/HEIC EXIF+XMP+ICC+thumbnail+image-details, IPTC-via-embedded-Exif only** — all proven against hand-built fixtures + ExifTool 13.55 cross-reads. **READ-ONLY — no write/remove API.** Loading: dynamic `import()` on first inspection (ships in a non-initial ~192 KB chunk, verified in `out/`); File inputs use ranged reads (`length:'auto'`); concurrency 2, cancellable run tokens, stale-result guards; Web Worker deferred to Phase 4 (needs worker-safe XML parser + static worker-bundling proof). Safety: never untrusted strings to `load()`, escape all tag output, explicit accept list, 64 MB/file inspection budget, tag/value caps. exifr trial-only; exif-heic-js fallback at most. |
 | Image clean/rewrite | **Custom zero-dependency TS walkers, all proven in Phase 3:** JPEG segment walker (SOS-aware incl. progressive/DHT/DNL, orientation-preserving minimal EXIF, ICC kept, APP11→partial); PNG chunk walker (CRC gate, APNG refusal, iCCP identical); WebP RIFF walker (padding, VP8X flag surgery, animation refusal); **AVIF/HEIC ISOBMFF item rebuild** (`meta` regen, `mdat` re-layout, `iref` prune, `ipma`-aware incl. plain-`iprp` real-encoder layout, pitm guard, brand/sequence gates) | No canvas/toBlob/re-encode anywhere (grep-verified); piexifjs rejected; sharp/exiftool never bundled (exiftool dev-time verification only); `aeo-image` not adopted — custom engine proven instead |
 | AVIF/HEIC preview (display only, never cleaning) | Native `<img>` where supported + placeholder otherwise; optional lazy WASM decode (`heic-to`/libheif build) for HEIC display only | Decoders are LGPL-3.0 + HEVC-patent-sensitive: never required for metadata ops; metadata path stays parse-only, codec-free |
-| C2PA | `@contentauth/c2pa-web` (MIT, c2pa-rs WASM; legacy c2pa-js deprecated Jun 2026) lazy-loaded | Presence vs validation split; removal only if proven |
+| C2PA | `@contentauth/c2pa-web` (MIT, c2pa-rs WASM; legacy c2pa-js deprecated Jun 2026) lazy-loaded | Presence vs validation split; removal proven per format (C2PA-removal milestone): structural locators in `clean/c2pa-locate.ts`, scope-gated drops in each format cleaner, `C2PA` target-group verification |
 | Video inspect | `mediainfo.js` 0.3.7 (BSD-2-Clause, WASM ~2.4MiB, TS) lazy worker | Best browser coverage |
 | Video clean | **Direct MP4 box edit first**; `ffmpeg.wasm` evaluation candidate only (2GB hard cap, ~100–200MB practical, COOP/COEP breaks on static hosts, LGPL/GPL core licensing, slow single-thread) | No transcode promise |
 | ZIP | `fflate` 0.8.x (MIT, 8kB, streaming, fastest on benchmarks) primary; `@zip.js/zip.js` (BSD-3-Clause) only if FS-streaming/Zip64 needed | No JSZip |
@@ -24,7 +24,7 @@
 
 **Verification status (Phase 3 COMPLETE):** inspect proven for all 5 formats (Phase 2). Cleaning proven with remove→re-inspect→payload-equality gates for JPEG/PNG/WebP/AVIF plus HEIC still layouts incl. one real-encoder layout (scoped Proven; other layouts stay Unsupported/Partial). Policy: `privacy_safe_default` removes proven-safe EXIF(non-technical)/XMP/IPTC/COM/text-chunks; preserves pixels, orientation(-minimal EXIF), ICC/`colr`, palettes/alpha, structure; retains unassessed APPn/chunks/uuid as `retained_unsupported` (coverage-limited partial, never silent). `aggressive_when_proven_safe` additionally drops unidentified APPn/ancillary chunks; ISOBMFF identical under both (item-graph safety dominates). Statuses: `verified_clean` / `partially_cleaned` / `unchanged_no_target_tags` downloadable; `failed`/`not_verified`/`unsupported` never downloadable. 30+1 fixtures, ExifTool before/after baselines, Pillow + heif-convert pixel-equality evidence, 82 unit + 19 E2E green in real Chrome vs production `out/`.
 
-**Machine-readable result statuses (contract for Phase 5 ZIP/CSV/PDF):** `verified_clean` → `verified_supported_scope` (only supported inspected groups confirmed; C2PA explicitly excluded from the scope); `partially_cleaned` → `partial` (retained `retained_unsupported` items enumerated); `failed` → `failed` (errors enumerated, no output); `unsupported` → `unsupported` (reason enumerated); `not_verified` → `not_verified` (withheld); category-level `not_inspected` (C2PA/video) → `not_inspected`. UI badges, `changes[]`, and future reports all derive from these — no second counting source.
+**Machine-readable result statuses (contract for Phase 5 ZIP/CSV/PDF):** `verified_clean` → `verified_supported_scope` (only supported inspected groups confirmed, incl. `C2PA` absence-after when a store was removed); `partially_cleaned` → `partial` (retained `retained_unsupported` items enumerated); `failed` → `failed` (errors enumerated, no output); `unsupported` → `unsupported` (reason enumerated); `not_verified` → `not_verified` (withheld); category-level `not_inspected` (C2PA/video paths) → `not_inspected`. UI badges, `changes[]`, and future reports all derive from these — no second counting source.
 
 **ISOBMFF design constraints (AVIF/HEIC, browser-only, format-preserving):** parse `size/type/largesize` + FullBox version/flags; follow `iloc` extents (method 0 absolute, 1 `idat`-relative); never delta-patch offsets — rebuild `meta` (regen `iinf`/`iloc`/`iref`) + fresh `mdat` and recompute all sizes/offsets; copy compressed image bytes verbatim (decode-compare in tests); preserve `pitm`/`iprp`, alpha, `colr`/HDR, thumbnails/aux/grid/overlay refs; refuse sequences (`msf1`/`heis`, `moov`-based) as `Unsupported`. Security: cap `itemCount×extentCount` allocation (cf. CVE-2026-85715), validate box lengths (cf. CVE-2026-53496), catch parse errors per-file in Workers.
 
@@ -64,3 +64,20 @@ docs/00-07  AGENTS.md  next.config.ts  package.json
 - **Phase 9:** a11y/mobile/virtualization, perf, license check, donate link, FAQ/methodology, E2E regression, Hostinger deploy docs. Accept: no paid deps, no surprise network calls, guest+signed-in journeys pass.
 
 After every phase: files changed, commands/results, samples, new limits, log + matrix updates, next recommendation without starting it.
+
+## C2PA removal design (milestone 14 Oct 2026)
+
+- **Locator before writer:** `src/lib/metadata/clean/c2pa-locate.ts` holds
+  all structural identification (JPEG EN/Z/marker grouping mirroring the
+  official delete path plus mandatory LBOX+TBOX duplication; PNG/WebP JUMBF
+  header + fixed-UUID proof; BMFF box-UUID + purpose + inner-UUID proof).
+  Writers only delete positively identified carriers — never by name alone.
+- **Scope gate:** `resolvesC2paRemovalTarget` (explicit `descriptive`, or
+  `ai_markers` with C2PA in the file's AI evidence). Out-of-scope stores are
+  retained with a scope reason; unproven same-name carriers are always
+  retained, even aggressive.
+- **Safe-fail policy:** `C2PA` joined the verify target groups, so a removed
+  claim verifies only on `not_detected` after real re-inspection;
+  `detected`/`not_inspected` after cleaning fails closed with output
+  withheld. ISOBMFF drops recompute all `iloc` offsets via the existing
+  full-rebuild path (no delta patching).

@@ -101,7 +101,7 @@ function validateStructure(kind: SniffedKind, data: Uint8Array): { ok: boolean; 
 }
 
 /** Target groups whose absence-after must be proven (not technical keeps). */
-const TARGET_GROUPS = new Set(["EXIF", "GPS", "XMP", "IPTC", "PNG text", "PNG text chunks", "JPEG"]);
+const TARGET_GROUPS = new Set(["EXIF", "GPS", "XMP", "IPTC", "PNG text", "PNG text chunks", "JPEG", "C2PA"]);
 
 function isTargetChange(change: MetadataChange): boolean {
   return change.action === "removed" && TARGET_GROUPS.has(change.group);

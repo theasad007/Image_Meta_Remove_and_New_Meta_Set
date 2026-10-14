@@ -2,9 +2,11 @@ import {
   CleanRefused,
   MetadataChange,
   fingerprint,
+  resolvesC2paRemovalTarget,
   resolvesCleaningTarget,
   type CleaningPolicy,
 } from "./types";
+import { locatePngC2pa } from "./c2pa-locate";
 
 /**
  * Lossless PNG metadata cleaner (Phase 3).
@@ -158,7 +160,33 @@ export function cleanPng(input: Uint8Array, policy: CleaningPolicy): PngCleanOut
   const kept: Uint8Array[] = [input.slice(0, 8)];
   const idatParts: Uint8Array[] = [];
   let textCount = 0;
-  for (const chunk of chunks) {
+  let c2paRemoved = false;
+  // C2PA caBX carriers: identified by JUMBF structure (never by name
+  // alone); unproven caBX is always retained, even under aggressive mode.
+  const removeC2pa = resolvesC2paRemovalTarget(policy);
+  const c2pa = locatePngC2pa(chunks);
+  const c2paIdentified = new Set(c2pa.identified);
+  const c2paUnproven = new Set(c2pa.unproven);
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    if (c2paIdentified.has(chunkIndex)) {
+      if (removeC2pa) {
+        c2paRemoved = true;
+        changes.push({ group: "C2PA", key: `caBX C2PA manifest store (${chunk.data.length} bytes)`, action: "removed", verification: "not_verified", reason: "Structurally proven caBX manifest store dropped; other chunks untouched." });
+        continue;
+      }
+      kept.push(encodeChunk(chunk.type, chunk.data));
+      coverageLimited = true;
+      warnings.push("Identified C2PA caBX store retained: outside the selected cleaning scope.");
+      changes.push({ group: "C2PA", key: "caBX C2PA manifest store", action: "retained_unsupported", verification: "not_verified", reason: "C2PA removal needs the descriptive (XMP/IPTC/text) or AI-indicator scope." });
+      continue;
+    }
+    if (c2paUnproven.has(chunkIndex)) {
+      kept.push(encodeChunk(chunk.type, chunk.data));
+      coverageLimited = true;
+      warnings.push("Unproven caBX chunk retained; coverage limited (never dropped blindly, even when aggressive).");
+      changes.push({ group: "C2PA", key: "caBX chunk", action: "retained_unsupported", verification: "not_verified", reason: "caBX chunk failed C2PA structural proof; kept rather than risk deleting unknown data." });
+      continue;
+    }
     if (chunk.type === "IDAT") {
       idatParts.push(chunk.data);
       kept.push(encodeChunk(chunk.type, chunk.data));
@@ -196,7 +224,7 @@ export function cleanPng(input: Uint8Array, policy: CleaningPolicy): PngCleanOut
     warnings.push(`Unknown ancillary chunk "${chunk.type}" retained; coverage limited.`);
     changes.push({ group: "PNG", key: chunk.type, action: "retained_unsupported", verification: "not_verified", reason: "Unknown ancillary chunk kept; not assessed." });
   }
-  if (textCount === 0) {
+  if (textCount === 0 && !c2paRemoved) {
     warnings.push("No eXIf/textual chunks present — nothing removable found.");
   }
   changes.push({ group: "PNG", key: "structure (signature/IHDR/IDAT/IEND)", action: "retained_technical", verification: "not_verified", reason: "Image structure and pixel payload preserved." });
