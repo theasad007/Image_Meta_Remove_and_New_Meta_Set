@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+coverage/
+e2e/report/
+e2e/artifacts/
+test-results/
+*.tsbuildinfo
+.DS_Store
+.env*

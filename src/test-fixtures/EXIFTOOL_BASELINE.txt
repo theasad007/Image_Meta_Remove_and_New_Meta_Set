@@ -1,0 +1,1059 @@
+======== ./webp-exif-xmp.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[ExifTool]      Warning                         : [minor] Fixed incorrect URI for xmlns:x
+[File]          FileName                        : webp-exif-xmp.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 924 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : Extended WEBP
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[RIFF]          WebP_Flags                      : XMP, EXIF
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VP8Version                      : 0 (bicubic reconstruction, normal loop)
+[RIFF]          ImageWidth                      : 16
+[RIFF]          HorizontalScale                 : 0
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VerticalScale                   : 0
+[EXIF]          ImageDescription                : Synthetic webp photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[XMP]           Creator                         : Phase Two Test Creator
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./jpeg-jumbf.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-jumbf.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1248 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic jumbf photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./webp-lossless-alpha.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : webp-lossless-alpha.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 598 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : Extended WEBP (lossless)
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[RIFF]          WebP_Flags                      : EXIF, Alpha
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          AlphaIsUsed                     : Yes
+[EXIF]          ImageDescription                : Synthetic lossless webp
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./png-bad-crc.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[ExifTool]      Warning                         : Invalid PNG chunk size
+[File]          FileName                        : png-bad-crc.png
+[File]          Directory                       : .
+[File]          FileSize                        : 772 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[PNG]           Title                           : Synthetic PNG Title
+[PNG]           Author                          : Phase Two Test Creator
+[PNG]           Description                     : Synthetic test PNG with text chunks
+[PNG]           Software                        : PhaseTwoTest/? 1.0
+[PNG]           Comment                         : plain-tEXt-comment
+[PNG]           CompressedNote                  : zTXt-compressed-note
+[PNG]           XMLcomadobexmp                  : <x:xmpmeta xmlns:x="adobe:ns:meta"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator><rdf:Seq><rdf:li>Phase Two Test Creator</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF></x:xmpmeta>
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./png-huge-length.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[ExifTool]      Warning                         : PNG image did not start with IHDR
+[ExifTool]      Warning                         : Corrupted PNG image
+[File]          FileName                        : png-huge-length.png
+[File]          Directory                       : .
+[File]          FileSize                        : 17 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:10:50+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+======== ./png-icc.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : png-icc.png
+[File]          Directory                       : .
+[File]          FileSize                        : 235 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[PNG]           Title                           : Synthetic PNG ICC Title
+[PNG]           ProfileName                     : ICC Profile
+[ICC_Profile]   ProfileCMMType                  : Unknown (TEST)
+[ICC_Profile]   ProfileVersion                  : 4.0.0
+[ICC_Profile]   ProfileClass                    : Display Device Profile
+[ICC_Profile]   ColorSpaceData                  : RGB
+[ICC_Profile]   ProfileConnectionSpace          : XYZ
+[ICC_Profile]   ProfileDateTime                 : 2026:10:13 00:00:00
+[ICC_Profile]   ProfileFileSignature            : acsp
+[ICC_Profile]   PrimaryPlatform                 : Apple Computer Inc.
+[ICC_Profile]   CMMFlags                        : Not Embedded, Independent
+[ICC_Profile]   DeviceManufacturer              : 
+[ICC_Profile]   DeviceModel                     : 
+[ICC_Profile]   DeviceAttributes                : Reflective, Glossy, Positive, Color
+[ICC_Profile]   RenderingIntent                 : Perceptual
+[ICC_Profile]   ConnectionSpaceIlluminant       : 0 0 0
+[ICC_Profile]   ProfileCreator                  : 
+[ICC_Profile]   ProfileID                       : 0
+[ICC_Profile]   ProfileDescription              : Phase3TestProfile
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./heic-uuid.heic
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : heic-uuid.heic
+[File]          Directory                       : .
+[File]          FileSize                        : 1487 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : HEIC
+[File]          FileTypeExtension               : heic
+[File]          MIMEType                        : image/heic
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[QuickTime]     MajorBrand                      : High Efficiency Image Format HEVC still image (.HEIC)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : heic, heix, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 1156
+[QuickTime]     MediaDataOffset                 : 285
+[EXIF]          ImageDescription                : Synthetic HEIC photo
+[EXIF]          Make                            : TestPhone
+[EXIF]          Model                           : TestPhone 1
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 0 deg 0' 0.00"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 0 deg 0' 0.00"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 10 m
+[XMP]           Creator                         : Phase Two Test Creator
+[XMP]           Description                     : Synthetic HEIC test image
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[Composite]     GPSAltitude                     : 10 m Above Sea Level
+[Composite]     GPSLatitude                     : 0 deg 0' 0.00" N
+[Composite]     GPSLongitude                    : 0 deg 0' 0.00" E
+[Composite]     GPSPosition                     : 0 deg 0' 0.00" N, 0 deg 0' 0.00" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./webp-animated.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : webp-animated.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 190 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : Extended WEBP
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[RIFF]          WebP_Flags                      : Animation
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          BackgroundColor                 : 0 0 0 0
+[RIFF]          AnimationLoopCount              : inf
+[RIFF]          Duration                        : 0.20 s
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./jpeg-exif.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-exif.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1176 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic harbor photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./avif-exif-xmp.avif
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : avif-exif-xmp.avif
+[File]          Directory                       : .
+[File]          FileSize                        : 1439 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : AVIF
+[File]          FileTypeExtension               : avif
+[File]          MIMEType                        : image/avif
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[QuickTime]     MajorBrand                      : AV1 Image File Format (.AVIF)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : avif, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 1158
+[QuickTime]     MediaDataOffset                 : 281
+[EXIF]          ImageDescription                : Synthetic AVIF photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[XMP]           Creator                         : Phase Two Test Creator
+[XMP]           Description                     : Synthetic AVIF test image
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./EXIFTOOL_BASELINE.txt
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : EXIFTOOL_BASELINE.txt
+[File]          Directory                       : .
+[File]          FileSize                        : 25 kB
+[File]          FileModifyDate                  : 2026:10:13 15:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:20:23+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 15:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : TXT
+[File]          FileTypeExtension               : txt
+[File]          MIMEType                        : text/plain
+[File]          MIMEEncoding                    : us-ascii
+[File]          Newlines                        : Unix LF
+[File]          LineCount                       : 387
+[File]          WordCount                       : 1944
+======== ./spoof-jpg-with-png-bytes.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : spoof-jpg-with-png-bytes.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 83 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./heic-real-encoder.heic
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : heic-real-encoder.heic
+[File]          Directory                       : .
+[File]          FileSize                        : 4.7 kB
+[File]          FileModifyDate                  : 2026:10:13 14:49:51+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:49:51+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:49:51+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : HEIC
+[File]          FileTypeExtension               : heic
+[File]          MIMEType                        : image/heic
+[File]          ExifByteOrder                   : Big-endian (Motorola, MM)
+[File]          ImageWidth                      : 64
+[File]          ImageHeight                     : 64
+[QuickTime]     MajorBrand                      : High Efficiency Image Format HEVC still image (.HEIC)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : mif1, heic, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     HEVCConfigurationVersion        : 1
+[QuickTime]     GeneralProfileSpace             : Conforming
+[QuickTime]     GeneralTierFlag                 : Main Tier
+[QuickTime]     GeneralProfileIDC               : Main Still Picture
+[QuickTime]     GenProfileCompatibilityFlags    : Main Still Picture, Main 10, Main
+[QuickTime]     ConstraintIndicatorFlags        : 144 0 0 0 0 0
+[QuickTime]     GeneralLevelIDC                 : 30 (level 1.0)
+[QuickTime]     MinSpatialSegmentationIDC       : 0
+[QuickTime]     ParallelismType                 : 0
+[QuickTime]     ChromaFormat                    : 4:2:0
+[QuickTime]     BitDepthLuma                    : 8
+[QuickTime]     BitDepthChroma                  : 8
+[QuickTime]     AverageFrameRate                : 0
+[QuickTime]     ConstantFrameRate               : Unknown
+[QuickTime]     NumTemporalLayers               : 1
+[QuickTime]     TemporalIDNested                : Yes
+[QuickTime]     ColorProfiles                   : nclx
+[QuickTime]     ColorPrimaries                  : BT.709
+[QuickTime]     TransferCharacteristics         : sRGB or sYCC
+[QuickTime]     MatrixCoefficients              : BT.601
+[QuickTime]     VideoFullRangeFlag              : Full
+[QuickTime]     ImageSpatialExtent              : 64x64
+[QuickTime]     CleanAperture                   : 64 48 0 -8
+[QuickTime]     ImagePixelDepth                 : 8 8 8
+[QuickTime]     MediaDataSize                   : 4138
+[QuickTime]     MediaDataOffset                 : 555
+[EXIF]          ImageDescription                : Real encoder HEIC test photo
+[EXIF]          Make                            : RealCam
+[EXIF]          Model                           : RealCam HEVC 1
+[EXIF]          Software                        : PhaseThreeRealTest 1.0
+[EXIF]          Artist                          : Real Encoder Creator
+[EXIF]          YCbCrPositioning                : Centered
+[EXIF]          Copyright                       : Real Rights 2026
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitude                     : 33 deg 52' 7.68"
+[EXIF]          GPSLongitude                    : 151 deg 12' 33.48"
+[EXIF]          GPSAltitude                     : 58 m
+[XMP]           XMPToolkit                      : Image::ExifTool 13.55
+[XMP]           Creator                         : Real Encoder Creator
+[XMP]           Description                     : Real encoder HEIC test photo
+[XMP]           Rights                          : Real Rights 2026
+[XMP]           CreatorTool                     : heif-enc-test
+[Composite]     ImageSize                       : 64x64
+[Composite]     Megapixels                      : 0.004
+[Composite]     GPSPosition                     : 33 deg 52' 7.68", 151 deg 12' 33.48"
+======== ./webp-empty.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : webp-empty.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 44 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:43+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : WEBP
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[RIFF]          VP8Version                      : 0 (bicubic reconstruction, normal loop)
+[RIFF]          ImageWidth                      : 16
+[RIFF]          HorizontalScale                 : 0
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VerticalScale                   : 0
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./jpeg-ai.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-ai.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1571 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:10:50+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[XMP]           Description                     : Synthetic neon market scene
+[XMP]           CreatorTool                     : Stable Diffusion WebUI v1.9
+[XMP]           DigitalSourceType               : http://cv.iptc.org/newscodes/c2aa9dmt/trainedAlgorithmicMedia
+[XMP]           AIPromptInformation             : neon street market, rain reflections
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./jpeg-xmp-iptc.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-xmp-iptc.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 2.3 kB
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          CurrentIPTCDigest               : db4b5ed075810d072e4811b40c6bc59b
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic harbor photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[XMP]           Creator                         : Phase Two Test Creator
+[XMP]           Rights                          : Phase Two Test Rights 2026
+[XMP]           Description                     : Synthetic test photo of a harbor at noon
+[XMP]           Credit                          : Phase Two Test Studio
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[IPTC]          ApplicationRecordVersion        : 2
+[IPTC]          ObjectName                      : Harbor Noon
+[IPTC]          Keywords                        : harbor, synthetic-test
+[IPTC]          By-line                         : Phase Two Test Creator
+[IPTC]          CopyrightNotice                 : Phase Two Test Rights 2026
+[IPTC]          Caption-Abstract                : Synthetic test photo of a harbor at noon
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./jpeg-progressive.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-progressive.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1068 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Progressive DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic progressive photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./heic-exif-gps.heic
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : heic-exif-gps.heic
+[File]          Directory                       : .
+[File]          FileSize                        : 1441 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : HEIC
+[File]          FileTypeExtension               : heic
+[File]          MIMEType                        : image/heic
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[QuickTime]     MajorBrand                      : High Efficiency Image Format HEVC still image (.HEIC)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : heic, heix, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 1156
+[QuickTime]     MediaDataOffset                 : 285
+[EXIF]          ImageDescription                : Synthetic HEIC photo
+[EXIF]          Make                            : TestPhone
+[EXIF]          Model                           : TestPhone 1
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 0 deg 0' 0.00"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 0 deg 0' 0.00"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 10 m
+[XMP]           Creator                         : Phase Two Test Creator
+[XMP]           Description                     : Synthetic HEIC test image
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[Composite]     GPSAltitude                     : 10 m Above Sea Level
+[Composite]     GPSLatitude                     : 0 deg 0' 0.00" N
+[Composite]     GPSLongitude                    : 0 deg 0' 0.00" E
+[Composite]     GPSPosition                     : 0 deg 0' 0.00" N, 0 deg 0' 0.00" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./png-text-exif.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : png-text-exif.png
+[File]          Directory                       : .
+[File]          FileSize                        : 772 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[PNG]           Title                           : Synthetic PNG Title
+[PNG]           Author                          : Phase Two Test Creator
+[PNG]           Description                     : Synthetic test PNG with text chunks
+[PNG]           Software                        : PhaseTwoTest/? 1.0
+[PNG]           Comment                         : plain-tEXt-comment
+[PNG]           CompressedNote                  : zTXt-compressed-note
+[PNG]           XMLcomadobexmp                  : <x:xmpmeta xmlns:x="adobe:ns:meta"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator><rdf:Seq><rdf:li>Phase Two Test Creator</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF></x:xmpmeta>
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./jpeg-gps-sw.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-gps-sw.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1178 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic southern photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Rotate 90 CW
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : South
+[EXIF]          GPSLatitude                     : 34 deg 36' 13.32"
+[EXIF]          GPSLongitudeRef                 : West
+[EXIF]          GPSLongitude                    : 58 deg 22' 53.76"
+[EXIF]          GPSAltitudeRef                  : Below Sea Level
+[EXIF]          GPSAltitude                     : 5 m
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 5 m Below Sea Level
+[Composite]     GPSLatitude                     : 34 deg 36' 13.32" S
+[Composite]     GPSLongitude                    : 58 deg 22' 53.76" W
+[Composite]     GPSPosition                     : 34 deg 36' 13.32" S, 58 deg 22' 53.76" W
+[Composite]     LensID                          : Test Lens 50mm
+======== ./jpeg-empty.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-empty.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 629 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./EXIFTOOL_AFTER_CLEAN.txt
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : EXIFTOOL_AFTER_CLEAN.txt
+[File]          Directory                       : .
+[File]          FileSize                        : 27 kB
+[File]          FileModifyDate                  : 2026:10:13 14:17:45+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:45+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:17:45+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : TXT
+[File]          FileTypeExtension               : txt
+[File]          MIMEType                        : text/plain
+[File]          MIMEEncoding                    : us-ascii
+[File]          Newlines                        : Unix LF
+[File]          LineCount                       : 445
+[File]          WordCount                       : 1929
+======== ./avif-real-encoder.avif
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : avif-real-encoder.avif
+[File]          Directory                       : .
+[File]          FileSize                        : 922 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : AVIF
+[File]          FileTypeExtension               : avif
+[File]          MIMEType                        : image/avif
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 32
+[File]          ImageHeight                     : 24
+[QuickTime]     MajorBrand                      : AV1 Image File Format (.AVIF)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : avif, mif1, miaf, MA1B
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     ImageSpatialExtent              : 32x24
+[QuickTime]     ImagePixelDepth                 : 8 8 8
+[QuickTime]     AV1ConfigurationVersion         : 1
+[QuickTime]     ChromaFormat                    : YUV 4:2:0
+[QuickTime]     ChromaSamplePosition            : Unknown
+[QuickTime]     ColorProfiles                   : nclx
+[QuickTime]     ColorPrimaries                  : BT.709
+[QuickTime]     TransferCharacteristics         : sRGB or sYCC
+[QuickTime]     MatrixCoefficients              : BT.601
+[QuickTime]     VideoFullRangeFlag              : Full
+[QuickTime]     MediaDataSize                   : 582
+[QuickTime]     MediaDataOffset                 : 340
+[EXIF]          ImageDescription                : Real encoder AVIF photo
+[EXIF]          Make                            : RealCam
+[EXIF]          Model                           : RealCam AV1
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PillowReal/? 11.3
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Real Encoder Creator
+[EXIF]          Copyright                       : Real Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 48 deg 51' 23.76"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 2 deg 21' 7.92"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 35 m
+[Composite]     ImageSize                       : 32x24
+[Composite]     Megapixels                      : 0.000768
+[Composite]     GPSAltitude                     : 35 m Above Sea Level
+[Composite]     GPSLatitude                     : 48 deg 51' 23.76" N
+[Composite]     GPSLongitude                    : 2 deg 21' 7.92" E
+[Composite]     GPSPosition                     : 48 deg 51' 23.76" N, 2 deg 21' 7.92" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./jpeg-truncated.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[ExifTool]      Warning                         : JPEG format error
+[File]          FileName                        : jpeg-truncated.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 520 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:06:37+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+======== ./png-empty.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : png-empty.png
+[File]          Directory                       : .
+[File]          FileSize                        : 83 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./avif-truncated-box.avif
+[ExifTool]      ExifToolVersion                 : 13.55
+[ExifTool]      Warning                         : Truncated atom header
+[File]          FileName                        : avif-truncated-box.avif
+[File]          Directory                       : .
+[File]          FileSize                        : 34 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:10:42+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : AVIF
+[File]          FileTypeExtension               : avif
+[File]          MIMEType                        : image/avif
+[QuickTime]     MajorBrand                      : AV1 Image File Format (.AVIF)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : avif, mif1
+======== ./jpeg-icc.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-icc.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1360 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:00:06+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          ImageDescription                : Synthetic icc photo
+[EXIF]          Make                            : TestCam
+[EXIF]          Model                           : TestCam Model X
+[EXIF]          Orientation                     : Horizontal (normal)
+[EXIF]          XResolution                     : 300
+[EXIF]          YResolution                     : 300
+[EXIF]          ResolutionUnit                  : inches
+[EXIF]          Software                        : PhaseTwoTest/? 1.0
+[EXIF]          ModifyDate                      : 2026:10:01 12:34:56
+[EXIF]          Artist                          : Phase Two Test Creator
+[EXIF]          Copyright                       : Phase Two Test Rights 2026
+[EXIF]          DateTimeOriginal                : 2026:10:01 12:34:56
+[EXIF]          LensModel                       : Test Lens 50mm
+[EXIF]          GPSVersionID                    : 2.3.0.0
+[EXIF]          GPSLatitudeRef                  : North
+[EXIF]          GPSLatitude                     : 12 deg 20' 44.44"
+[EXIF]          GPSLongitudeRef                 : East
+[EXIF]          GPSLongitude                    : 98 deg 45' 55.55"
+[EXIF]          GPSAltitudeRef                  : Above Sea Level
+[EXIF]          GPSAltitude                     : 150 m
+[ICC_Profile]   ProfileCMMType                  : Unknown (TEST)
+[ICC_Profile]   ProfileVersion                  : 4.0.0
+[ICC_Profile]   ProfileClass                    : Display Device Profile
+[ICC_Profile]   ColorSpaceData                  : RGB
+[ICC_Profile]   ProfileConnectionSpace          : XYZ
+[ICC_Profile]   ProfileDateTime                 : 2026:10:13 00:00:00
+[ICC_Profile]   ProfileFileSignature            : acsp
+[ICC_Profile]   PrimaryPlatform                 : Apple Computer Inc.
+[ICC_Profile]   CMMFlags                        : Not Embedded, Independent
+[ICC_Profile]   DeviceManufacturer              : 
+[ICC_Profile]   DeviceModel                     : 
+[ICC_Profile]   DeviceAttributes                : Reflective, Glossy, Positive, Color
+[ICC_Profile]   RenderingIntent                 : Perceptual
+[ICC_Profile]   ConnectionSpaceIlluminant       : 0 0 0
+[ICC_Profile]   ProfileCreator                  : 
+[ICC_Profile]   ProfileID                       : 0
+[ICC_Profile]   ProfileDescription              : Phase3TestProfile
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+[Composite]     GPSAltitude                     : 150 m Above Sea Level
+[Composite]     GPSLatitude                     : 12 deg 20' 44.44" N
+[Composite]     GPSLongitude                    : 98 deg 45' 55.55" E
+[Composite]     GPSPosition                     : 12 deg 20' 44.44" N, 98 deg 45' 55.55" E
+[Composite]     LensID                          : Test Lens 50mm
+======== ./jpeg-xmp-extended.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-xmp-extended.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1377 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[XMP]           HasExtendedXMP                  : 0123456789ABCDEF0123456789ABCDEF
+[XMP]           Extended                        : synthetic-extended-xmp-fragment-
+[XMP]           Extended                        : synthetic-extended-xmp-fragment-
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./jpeg-caption-ai.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : jpeg-caption-ai.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 1192 bytes
+[File]          FileModifyDate                  : 2026:10:13 13:59:52+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:10:50+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 13:59:52+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[XMP]           Description                     : Portrait of Ai at the market
+[XMP]           CreatorTool                     : PhaseTwoTest/? 1.0
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+    1 directories scanned
+   29 image files read

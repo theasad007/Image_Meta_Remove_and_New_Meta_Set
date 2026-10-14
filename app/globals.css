@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #14213d;
+  --muted: #5f6c85;
+  --line: #dce4ee;
+  --brand: #3157d5;
+  --brand-dark: #2343af;
+  --mint: #0d9474;
+  --mint-soft: #e7f8f2;
+  --canvas: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--canvas);
+}
+
+body {
+  min-width: 320px;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 3%, rgb(225 235 255 / 72%), transparent 25rem),
+    radial-gradient(circle at 92% 14%, rgb(220 249 240 / 65%), transparent 24rem),
+    var(--canvas);
+  font-family: "Avenir Next", Avenir, "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+a,
+label,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+button:not(:disabled):active,
+a:active {
+  transform: translateY(1px);
+}
+
+::selection {
+  color: #fff;
+  background: var(--brand);
+}
+
+/* Keep keyboard focus unmistakable on every background. */
+:focus-visible {
+  outline: 3px solid #5d82f5;
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.surface-card {
+  border: 1px solid rgb(220 228 238 / 92%);
+  background: rgb(255 255 255 / 92%);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 4%),
+    0 18px 55px rgb(39 55 91 / 7%);
+  backdrop-filter: blur(14px);
+}
+
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #3157d5;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.section-kicker::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #4f6ee8;
+  box-shadow: 0 0 0 4px #e7ecff;
+  content: "";
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-success,
+.btn-danger {
+  display: inline-flex;
+  min-height: 2.55rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.62rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 750;
+}
+
+.btn-primary {
+  border: 1px solid #3157d5;
+  color: white;
+  background: #3157d5;
+  box-shadow: 0 8px 18px rgb(49 87 213 / 20%);
+}
+
+.btn-primary:hover:not(:disabled) {
+  border-color: #2343af;
+  background: #2343af;
+  box-shadow: 0 10px 22px rgb(35 67 175 / 25%);
+}
+
+.btn-success {
+  border: 1px solid #0d9474;
+  color: white;
+  background: #0d9474;
+  box-shadow: 0 8px 18px rgb(13 148 116 / 18%);
+}
+
+.btn-success:hover:not(:disabled) {
+  border-color: #08765d;
+  background: #08765d;
+}
+
+.btn-secondary {
+  border: 1px solid #cdd7e5;
+  color: #35435c;
+  background: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: #aebed2;
+  background: #f7f9fc;
+}
+
+.btn-danger {
+  border: 1px solid #fecaca;
+  color: #b42318;
+  background: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fff1f2;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-success:disabled,
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

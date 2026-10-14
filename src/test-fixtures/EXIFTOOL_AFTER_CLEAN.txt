@@ -1,0 +1,445 @@
+======== ./clean-avif-real-encoder.avif
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-avif-real-encoder.avif
+[File]          Directory                       : .
+[File]          FileSize                        : 345 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:35+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : AVIF
+[File]          FileTypeExtension               : avif
+[File]          MIMEType                        : image/avif
+[File]          ImageWidth                      : 32
+[File]          ImageHeight                     : 24
+[QuickTime]     MajorBrand                      : AV1 Image File Format (.AVIF)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : avif, mif1, miaf, MA1B
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     ImageSpatialExtent              : 32x24
+[QuickTime]     ImagePixelDepth                 : 8 8 8
+[QuickTime]     AV1ConfigurationVersion         : 1
+[QuickTime]     ChromaFormat                    : YUV 4:2:0
+[QuickTime]     ChromaSamplePosition            : Unknown
+[QuickTime]     ColorProfiles                   : nclx
+[QuickTime]     ColorPrimaries                  : BT.709
+[QuickTime]     TransferCharacteristics         : sRGB or sYCC
+[QuickTime]     MatrixCoefficients              : BT.601
+[QuickTime]     VideoFullRangeFlag              : Full
+[QuickTime]     MediaDataSize                   : 64
+[QuickTime]     MediaDataOffset                 : 281
+[Composite]     ImageSize                       : 32x24
+[Composite]     Megapixels                      : 0.000768
+======== ./clean-jpeg-progressive.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-progressive.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 520 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Progressive DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-png-empty.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-png-empty.png
+[File]          Directory                       : .
+[File]          FileSize                        : 83 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-webp-lossless-alpha.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-webp-lossless-alpha.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 56 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : Extended WEBP (lossless)
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[RIFF]          WebP_Flags                      : Alpha
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          AlphaIsUsed                     : Yes
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-jpeg-xmp-extended.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-xmp-extended.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 632 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-webp-empty.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-webp-empty.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 44 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : WEBP
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[RIFF]          VP8Version                      : 0 (bicubic reconstruction, normal loop)
+[RIFF]          ImageWidth                      : 16
+[RIFF]          HorizontalScale                 : 0
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VerticalScale                   : 0
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-jpeg-empty.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-empty.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 629 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-jpeg-gps-sw.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-gps-sw.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 669 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ExifByteOrder                   : Little-endian (Intel, II)
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[EXIF]          Orientation                     : Rotate 90 CW
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-heic-exif-gps.heic
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-heic-exif-gps.heic
+[File]          Directory                       : .
+[File]          FileSize                        : 185 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:35+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : HEIC
+[File]          FileTypeExtension               : heic
+[File]          MIMEType                        : image/heic
+[QuickTime]     MajorBrand                      : High Efficiency Image Format HEVC still image (.HEIC)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : heic, heix, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 8
+[QuickTime]     MediaDataOffset                 : 177
+======== ./clean-jpeg-exif.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-exif.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 633 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-avif-exif-xmp.avif
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-avif-exif-xmp.avif
+[File]          Directory                       : .
+[File]          FileSize                        : 181 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:45+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : AVIF
+[File]          FileTypeExtension               : avif
+[File]          MIMEType                        : image/avif
+[QuickTime]     MajorBrand                      : AV1 Image File Format (.AVIF)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : avif, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 8
+[QuickTime]     MediaDataOffset                 : 173
+======== ./clean-jpeg-icc.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-icc.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 820 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[ICC_Profile]   ProfileCMMType                  : Unknown (TEST)
+[ICC_Profile]   ProfileVersion                  : 4.0.0
+[ICC_Profile]   ProfileClass                    : Display Device Profile
+[ICC_Profile]   ColorSpaceData                  : RGB
+[ICC_Profile]   ProfileConnectionSpace          : XYZ
+[ICC_Profile]   ProfileDateTime                 : 2026:10:13 00:00:00
+[ICC_Profile]   ProfileFileSignature            : acsp
+[ICC_Profile]   PrimaryPlatform                 : Apple Computer Inc.
+[ICC_Profile]   CMMFlags                        : Not Embedded, Independent
+[ICC_Profile]   DeviceManufacturer              : 
+[ICC_Profile]   DeviceModel                     : 
+[ICC_Profile]   DeviceAttributes                : Reflective, Glossy, Positive, Color
+[ICC_Profile]   RenderingIntent                 : Perceptual
+[ICC_Profile]   ConnectionSpaceIlluminant       : 0 0 0
+[ICC_Profile]   ProfileCreator                  : 
+[ICC_Profile]   ProfileID                       : 0
+[ICC_Profile]   ProfileDescription              : Phase3TestProfile
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-heic-uuid.heic
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-heic-uuid.heic
+[File]          Directory                       : .
+[File]          FileSize                        : 231 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:35+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : HEIC
+[File]          FileTypeExtension               : heic
+[File]          MIMEType                        : image/heic
+[QuickTime]     MajorBrand                      : High Efficiency Image Format HEVC still image (.HEIC)
+[QuickTime]     MinorVersion                    : 0.0.0
+[QuickTime]     CompatibleBrands                : heic, heix, mif1, miaf
+[QuickTime]     HandlerType                     : Picture
+[QuickTime]     PrimaryItemReference            : 1
+[QuickTime]     MediaDataSize                   : 8
+[QuickTime]     MediaDataOffset                 : 177
+======== ./clean-png-icc.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-png-icc.png
+[File]          Directory                       : .
+[File]          FileSize                        : 194 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[PNG]           ProfileName                     : ICC Profile
+[ICC_Profile]   ProfileCMMType                  : Unknown (TEST)
+[ICC_Profile]   ProfileVersion                  : 4.0.0
+[ICC_Profile]   ProfileClass                    : Display Device Profile
+[ICC_Profile]   ColorSpaceData                  : RGB
+[ICC_Profile]   ProfileConnectionSpace          : XYZ
+[ICC_Profile]   ProfileDateTime                 : 2026:10:13 00:00:00
+[ICC_Profile]   ProfileFileSignature            : acsp
+[ICC_Profile]   PrimaryPlatform                 : Apple Computer Inc.
+[ICC_Profile]   CMMFlags                        : Not Embedded, Independent
+[ICC_Profile]   DeviceManufacturer              : 
+[ICC_Profile]   DeviceModel                     : 
+[ICC_Profile]   DeviceAttributes                : Reflective, Glossy, Positive, Color
+[ICC_Profile]   RenderingIntent                 : Perceptual
+[ICC_Profile]   ConnectionSpaceIlluminant       : 0 0 0
+[ICC_Profile]   ProfileCreator                  : 
+[ICC_Profile]   ProfileID                       : 0
+[ICC_Profile]   ProfileDescription              : Phase3TestProfile
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-png-text-exif.png
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-png-text-exif.png
+[File]          Directory                       : .
+[File]          FileSize                        : 83 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : PNG
+[File]          FileTypeExtension               : png
+[File]          MIMEType                        : image/png
+[PNG]           ImageWidth                      : 16
+[PNG]           ImageHeight                     : 12
+[PNG]           BitDepth                        : 8
+[PNG]           ColorType                       : RGB
+[PNG]           Compression                     : Deflate/Inflate
+[PNG]           Filter                          : Adaptive
+[PNG]           Interlace                       : Noninterlaced
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-webp-exif-xmp.webp
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-webp-exif-xmp.webp
+[File]          Directory                       : .
+[File]          FileSize                        : 78 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:26+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : Extended WEBP
+[File]          FileTypeExtension               : webp
+[File]          MIMEType                        : image/webp
+[RIFF]          WebP_Flags                      : (none)
+[RIFF]          ImageWidth                      : 16
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VP8Version                      : 0 (bicubic reconstruction, normal loop)
+[RIFF]          ImageWidth                      : 16
+[RIFF]          HorizontalScale                 : 0
+[RIFF]          ImageHeight                     : 12
+[RIFF]          VerticalScale                   : 0
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-jpeg-jumbf.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-jumbf.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 706 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+======== ./clean-jpeg-xmp-iptc.jpg
+[ExifTool]      ExifToolVersion                 : 13.55
+[File]          FileName                        : clean-jpeg-xmp-iptc.jpg
+[File]          Directory                       : .
+[File]          FileSize                        : 633 bytes
+[File]          FileModifyDate                  : 2026:10:13 14:14:44+06:00
+[File]          FileAccessDate                  : 2026:10:13 14:17:45+06:00
+[File]          FileInodeChangeDate             : 2026:10:13 14:14:44+06:00
+[File]          FilePermissions                 : -rw-r--r--
+[File]          FileType                        : JPEG
+[File]          FileTypeExtension               : jpg
+[File]          MIMEType                        : image/jpeg
+[File]          ImageWidth                      : 16
+[File]          ImageHeight                     : 12
+[File]          EncodingProcess                 : Baseline DCT, Huffman coding
+[File]          BitsPerSample                   : 8
+[File]          ColorComponents                 : 3
+[File]          YCbCrSubSampling                : YCbCr4:2:0 (2 2)
+[JFIF]          JFIFVersion                     : 1.01
+[JFIF]          ResolutionUnit                  : None
+[JFIF]          XResolution                     : 1
+[JFIF]          YResolution                     : 1
+[Composite]     ImageSize                       : 16x12
+[Composite]     Megapixels                      : 0.000192
+    1 directories scanned
+   18 image files read
