@@ -8,3 +8,9 @@ test-results/
 *.tsbuildinfo
 .DS_Store
 .env*
+!.env.local.example
+firestore-debug.log
+firebase-debug.log
+*service-account*.json
+serviceAccountKey*.json
+*-service-account-key.json

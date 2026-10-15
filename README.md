@@ -31,16 +31,39 @@ subdirectory and in browsers that permit local `file://` application assets.
 HTTP serving is still recommended because it matches production browser
 security behavior.
 
-## Scope boundaries (Phase 5)
+## Scope boundaries (Phase 6)
 
 - Upload + queue (Phase 1), real metadata inspection (Phase 2), guest
-  cleaning with verification gate (Phase 3), and bulk Clean All + ZIP
-  (Phase 4) still work, plus guest **audit reports**: standalone **CSV**
-  (summary + detailed tag ledger) and **PDF** downloads, and optional
-  `reports/` inclusion in ZIP via None/CSV/PDF/Both. Summary redaction is
-  the default; original values need explicit opt-in.
-- Still disabled and labeled Planned: Firebase sign-in, custom rewrite,
-  GeoTag, video cleaning.
+  cleaning with verification gate (Phase 3), bulk Clean All + ZIP
+  (Phase 4), and guest **audit reports** (Phase 5: standalone **CSV**
+  + tag ledger + **PDF**, optional `reports/` in ZIP) all still work with
+  no login and no count cap.
+- Signed-in only: **Google sign-in + saved metadata profiles + verified
+  per-format rewrite** (JPEG/PNG/WebP/AVIF/HEIC stills, replace vs update
+  modes, single + bulk, `-rewritten` downloads, rewrite-aware ZIP/CSV/PDF).
+  Without Firebase config only the profile/rewrite surfaces report
+  “not configured” — every guest flow keeps working.
+- Owner only: **Admin Dashboard** (`/admin`, superadmin custom-claim gated)
+  with a Firestore-backed account directory (suspend/restore cloud-feature
+  access) and a non-enforced usage-policy record. Suspension never touches
+  Google login or anonymous cleaning. Setup: `docs/10-admin-setup.md`.
+- Still disabled and labeled Planned: GeoTag (Phase 7), video cleaning
+  (Phase 8).
+
+## Firebase setup (Phase 6, Spark/free)
+
+1. Create a Firebase project (Spark plan) and a Web app; enable
+   Authentication → Google provider; add your Hostinger domain (and
+   `localhost`) under Authentication → Authorized domains.
+2. Copy `.env.local.example` → `.env.local`, fill the four
+   `NEXT_PUBLIC_FIREBASE_*` values, `npm run build`, redeploy `out/`.
+3. Publish `firestore.rules` (Firestore → Rules or
+   `firebase deploy --only firestore:rules`) — committing the file alone
+   secures nothing. Profile data lives only at
+   `users/{uid}/profile/main`.
+4. Live login + rules checklists: `docs/06-deployment-hostinger.md`
+   (manual OAuth steps) and `npm run test:rules` (needs Java 21+ for the
+   emulator; NOT RUN in this environment — see `docs/04-test-plan.md`).
 
 ## C2PA removal milestone (14 Oct 2026)
 

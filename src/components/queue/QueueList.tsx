@@ -3,6 +3,7 @@
 import QueueItem from "./QueueItem";
 import { formatBytes } from "../../lib/format-detection/format-bytes";
 import type { CleaningStatus, CleaningTarget } from "../../lib/metadata/clean/types";
+import type { RewriteStatus } from "../../lib/metadata/rewrite/rewrite";
 import type { ImageInspectionResult, InspectionOutcome } from "../../types/inspection";
 import type { QueueEntry } from "../../types/media";
 
@@ -15,6 +16,9 @@ interface QueueListProps {
   inspectionResultOf: (id: string) => ImageInspectionResult | undefined;
   cleaningOf: (id: string) => CleaningStatus | "cleaning" | undefined;
   hasCleaningResultFor: (id: string) => boolean;
+  rewriteOf?: (id: string) => RewriteStatus | "rewriting" | undefined;
+  hasRewriteResultFor?: (id: string) => boolean;
+  rewriteEnabled?: boolean;
   inspectingCount: number;
   cleaningCount: number;
   busy: boolean;
@@ -42,6 +46,8 @@ interface QueueListProps {
   onCleanSelected: () => void;
   onCancelInspections: () => void;
   onCancelCleaning: () => void;
+  onRewrite?: (id: string) => void;
+  onShowRewrite?: (id: string) => void;
 }
 
 const TARGETS: Array<{ value: CleaningTarget; label: string; hint: string }> = [
@@ -53,12 +59,12 @@ const TARGETS: Array<{ value: CleaningTarget; label: string; hint: string }> = [
 export default function QueueList(props: QueueListProps) {
   const {
     entries, announcement, inspectionOf, inspectionResultOf, cleaningOf,
-    hasCleaningResultFor, inspectingCount, cleaningCount, busy, batchRunning,
+    hasCleaningResultFor, rewriteOf, hasRewriteResultFor, rewriteEnabled, inspectingCount, cleaningCount, busy, batchRunning,
     cleanableOf, selectedOf, selectedCount, selectedCleanableCount, eligibleInputs, cleaningTargets,
     partialOptedInOf, onToggleSelect, onToggleSelectAll, onToggleCleaningTarget,
     onRemoveSelected, onTogglePartial, onRetry, onRemove, onClear, onInspect,
     onShow, onClean, onShowCleaning, onCleanAll, onCleanSelected,
-    onCancelInspections, onCancelCleaning,
+    onCancelInspections, onCancelCleaning, onRewrite, onShowRewrite,
   } = props;
   const totalBytes = entries.reduce((sum, entry) => sum + entry.source.size, 0);
   const images = entries.filter((entry) => entry.item.detected.mediaKind === "image").length;
@@ -109,7 +115,7 @@ export default function QueueList(props: QueueListProps) {
 
           <div className="mt-4 hidden grid-cols-[2rem_4.75rem_minmax(10rem,1fr)_minmax(18rem,1.35fr)_auto_2.25rem] gap-3 px-3 text-[10px] font-extrabold uppercase tracking-[.12em] text-slate-400 lg:grid"><span /><span>Preview</span><span>File</span><span>Detected metadata</span><span className="text-right">Actions</span><span /></div>
           <ul data-testid="queue-list" className="mt-2 grid gap-2">
-            {entries.map((entry, index) => <QueueItem key={entry.item.id} entry={entry} index={index} autoPreview={index < MAX_AUTO_PREVIEWS} inspectionState={inspectionOf(entry.item.id)} inspectionResult={inspectionResultOf(entry.item.id)} cleaningState={cleaningOf(entry.item.id)} hasCleaningResult={hasCleaningResultFor(entry.item.id)} busy={busy} cleanable={cleanableOf(entry.item.id)} selected={selectedOf(entry.item.id)} partialOptedIn={partialOptedInOf(entry.item.id)} onToggleSelect={onToggleSelect} onTogglePartial={onTogglePartial} onRetry={onRetry} onRemove={onRemove} onInspect={onInspect} onShow={onShow} onClean={onClean} onShowCleaning={onShowCleaning} />)}
+            {entries.map((entry, index) => <QueueItem key={entry.item.id} entry={entry} index={index} autoPreview={index < MAX_AUTO_PREVIEWS} inspectionState={inspectionOf(entry.item.id)} inspectionResult={inspectionResultOf(entry.item.id)} cleaningState={cleaningOf(entry.item.id)} hasCleaningResult={hasCleaningResultFor(entry.item.id)} rewriteState={rewriteOf?.(entry.item.id)} hasRewriteResult={hasRewriteResultFor?.(entry.item.id) ?? false} rewriteEnabled={rewriteEnabled} busy={busy} cleanable={cleanableOf(entry.item.id)} selected={selectedOf(entry.item.id)} partialOptedIn={partialOptedInOf(entry.item.id)} onToggleSelect={onToggleSelect} onTogglePartial={onTogglePartial} onRetry={onRetry} onRemove={onRemove} onInspect={onInspect} onShow={onShow} onClean={onClean} onShowCleaning={onShowCleaning} onRewrite={onRewrite} onShowRewrite={onShowRewrite} />)}
           </ul>
         </>
       )}

@@ -1,20 +1,20 @@
-# 05 — Metadata Field Mapping (draft for Phase 6, Spec v1.1)
+# 05 — Metadata Field Mapping (Phase 6 proven)
 
-Profile fields are optional; writer support is per-format and must verify on re-read. Never place every value in arbitrary EXIF comments or forge camera/C2PA history. **AVIF/HEIC use XMP (`dc:`/`photoshop:`/`xmpRights:`/PLUS) + EXIF items — never legacy IPTC-IIM, never JPEG conversion.**
+Profile fields are optional; writer support is per-format and verified on re-read. Never place every value in arbitrary EXIF comments or forge camera/C2PA history. **AVIF/HEIC use XMP (`dc:`/`xmpRights:`/`Iptc4xmpCore`) + EXIF items — never legacy IPTC-IIM, never JPEG conversion.**
 
-| UI field | Meaning | JPEG | PNG / WebP | AVIF / HEIC (required, verify) |
+| UI field | Meaning | JPEG | PNG / WebP | AVIF / HEIC |
 |---|---|---|---|---|
-| Company / Publisher | Distributor | XMP `dc:publisher` / IPTC Credit | XMP (field-dependent) | XMP item `dc:publisher` |
-| Creator / Author | True creator | EXIF `Artist` · XMP `dc:creator` · IPTC Creator | XMP (field-dependent) | XMP `dc:creator` + EXIF `Artist` item where proven |
-| Copyright Notice | Notice text | EXIF `Copyright` · XMP `rights` · IPTC CopyrightNotice | XMP (field-dependent) | XMP `dc:rights`/`photoshop:Copyright` + EXIF item where proven |
-| Rights Owner | Holder if ≠ creator | IPTC/XMP rights-owner where supported | XMP where supported | XMP rights-owner where supported |
-| Website / URL | Link | XMP/IPTC contact/url where supported | XMP where supported | XMP `xmpRights:WebStatement`/PLUS where supported |
-| Contact | Email/phone | IPTC contact set where supported | XMP where supported | XMP where supported |
-| Image Title | Friendly title | EXIF `DocumentName` · XMP `dc:title` | XMP `dc:title` | XMP `dc:title` + EXIF item where proven |
-| Image Description | What it shows | EXIF `ImageDescription` · XMP `dc:description` (not HTML `alt`) | XMP `dc:description` | XMP `dc:description` + EXIF item where proven |
-| Keywords / Tags | Controlled list | IPTC Keywords · XMP `dc:subject` (avoid `XPKeywords` as primary) | XMP `dc:subject` | XMP `dc:subject` |
-| Location Name | Human place | IPTC/XMP location where supported | XMP where supported | XMP location where supported |
-| Latitude / Longitude | Coords | EXIF GPS (JPEG target) | EXIF/XMP only if verified | **EXIF GPS item (required target, per-format proof)** |
-| Altitude | Elevation | EXIF GPS altitude where supported | Only if verified | **EXIF GPS altitude (required target, per-format proof)** |
+| Company / Publisher | Distributor (≠ creator) | XMP `dc:publisher` (Seq) + IPTC 2:110 | XMP `dc:publisher` (IPTC unsupported) | XMP item `dc:publisher` (IPTC unsupported) |
+| Creator / Author | True creator only | EXIF `Artist` (315) + XMP `dc:creator` (Seq) + IPTC 2:80 | EXIF + XMP (IPTC unsupported) | Exif item + XMP item (IPTC unsupported) |
+| Copyright Notice | Notice text | EXIF `Copyright` (33432) + XMP `dc:rights` (Alt) + IPTC 2:116 | EXIF + XMP | Exif + XMP |
+| Rights Owner | Holder if ≠ creator | XMP `xmpRights:Owner` (Bag) — no EXIF/IPTC home | XMP only | XMP only |
+| Website / URL | Link (http/https) | XMP `Iptc4xmpCore:CreatorContactInfo/CiUrlWork` | XMP only | XMP only |
+| Contact | Consented contact | XMP `dc:contributor` (Bag) + IPTC 2:118 | XMP only | XMP only |
+| Image Title | Friendly title | EXIF `DocumentName` (269) + XMP `dc:title` (Alt) + IPTC 2:5 | EXIF + XMP | Exif + XMP |
+| Image Description | What it shows | EXIF `ImageDescription` (270) + XMP `dc:description` (Alt) + IPTC 2:120 | EXIF + XMP | Exif + XMP |
+| Keywords / Tags | Controlled list (≤30, deduped) | XMP `dc:subject` (Bag, distinct) + IPTC 2:25 per keyword | XMP `dc:subject` Bag | XMP `dc:subject` Bag |
+| Location Name | Human place (non-GPS) | XMP `Iptc4xmpCore:Location` + IPTC 2:92 | XMP only | XMP only |
+| Latitude / Longitude | Coords | Phase 7 (EXIF GPS target) | Phase 7 | Phase 7 |
+| Altitude | Elevation | Phase 7 | Phase 7 | Phase 7 |
 
-Modes: `Replace existing editable metadata` (clears editable, keeps technical/display-critical, explicit list) vs `Update only selected fields` (touches requested fields only). Multi-file: global profile + optional per-file title/desc overrides (defer overrides if needed). Each change emits `MetadataChange{namespace,tag,oldValue,expectedValue,observedValue,action,verified}`.
+Verification semantics: every claimed field is re-observed in its mapped locations (`observeFieldValues`); `verified` requires all supported locations to match semantically (keyword sets compared order-insensitively). IPTC locations outside JPEG are `retained_unsupported` (disclosed, not failures). Malformed existing blocks refuse with per-field reasons; oversized JPEG segments refuse. Modes: `replace_editable` (proven clean first, then write) vs `update_selected` (chosen fields only; unrelated incl. C2PA preserved + re-validated). Each change emits `MetadataChange{group,key,action,before,after,verification,reason}` with `action=rewritten` for verified writes.

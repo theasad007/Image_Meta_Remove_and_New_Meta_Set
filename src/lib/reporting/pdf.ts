@@ -266,7 +266,7 @@ export async function buildReportPdf(
         : "no output inspection";
       paragraph(ctx, `Before — ${beforeLine || "nothing inspected"}`, 8, 1);
       paragraph(ctx, `After — ${afterLine}`, 8, 1);
-      paragraph(ctx, `Removed verified: ${record.verifiedRemovedCount} · Retained: ${record.retainedCount} · Unverified/unsupported: ${record.unverifiedCount} · Rewritten: ${record.verifiedRewrittenCount} (n/a until Phase 6) · GPS: ${record.gpsBefore} → ${record.gpsAfter} · AI: ${record.aiIndicatorsBefore} · C2PA: ${record.c2paState}`, 8, 1);
+      paragraph(ctx, `Removed verified: ${record.verifiedRemovedCount} · Retained: ${record.retainedCount} · Unverified/unsupported: ${record.unverifiedCount} · Rewritten verified: ${record.verifiedRewrittenCount} · GPS: ${record.gpsBefore} → ${record.gpsAfter} · AI: ${record.aiIndicatorsBefore} · C2PA: ${record.c2paState}`, 8, 1);
       if (record.archiveIncluded) {
         paragraph(ctx, `In ZIP: ${record.archivePath}`, 8, 1);
       } else {
@@ -294,7 +294,7 @@ export async function buildReportPdf(
     let shown = 0;
     for (const record of snapshot.records) {
       if (shown >= 400 || options.isCancelled?.()) break;
-      const interesting = record.changes.filter((c) => c.action === "removed" || c.action.startsWith("retained"));
+      const interesting = record.changes.filter((c) => c.action === "removed" || c.action === "rewritten" || c.action.startsWith("retained"));
       if (interesting.length === 0) continue;
       paragraph(ctx, `${record.fileName}`, 9, 1, true);
       for (const change of interesting.slice(0, 12)) {

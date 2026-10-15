@@ -75,7 +75,7 @@ export interface WebpCleanOutput {
   coverageLimited: boolean;
 }
 
-function encodeChunk(id: string, data: Uint8Array): Uint8Array {
+export function encodeChunk(id: string, data: Uint8Array): Uint8Array {
   const out = new Uint8Array(8 + data.length + (data.length % 2));
   for (let i = 0; i < 4; i += 1) out[i] = id.charCodeAt(i);
   const view = new DataView(out.buffer);

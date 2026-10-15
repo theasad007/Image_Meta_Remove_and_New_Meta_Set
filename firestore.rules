@@ -1,0 +1,152 @@
+rules_version = '2';
+
+// AI Metadata Remover — Phase 6A Firestore rules (Spark/free compatible).
+//
+// Private, profile-only database. NEVER media, filenames, scan history,
+// extracted metadata, reports, ZIPs, or per-file processing counters:
+// the schemas below simply have no fields for them.
+//
+// Paths:
+// - users/{uid}/profile/main — Phase 6 custom-metadata profile (owner-only,
+//   denied while the account directory marks the user suspended).
+// - users/{uid} — minimal registered-account directory (uid, Google
+//   email/display name/photoURL, status active/suspended, createdAt,
+//   updatedAt, superadmin-only statusReason). Clients create only their
+//   own record as active; only holders of the `superadmin: true` Auth
+//   custom claim can list accounts or flip status. This directory is NOT
+//   the Firebase Auth user list (browsers must never call listUsers).
+// - adminSettings/usagePolicy — superadmin-only future policy values,
+//   explicitly NOT enforced by any client or rule in this milestone.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isSuperadmin() {
+      return isSignedIn() && request.auth.token.get('superadmin', false) == true;
+    }
+
+    function accountExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // Suspended accounts lose signed-in CLOUD features (profile/admin).
+    // Accounts without a directory entry (pre-directory Auth users) keep
+    // working so nothing breaks before the backfill step.
+    function accountActive(uid) {
+      return !accountExists(uid)
+        || get(/databases/$(database)/documents/users/$(uid)).data.status == 'active';
+    }
+
+    function validProfile(data) {
+      return data.keys().hasOnly([
+        'company', 'creator', 'copyright', 'rightsOwner', 'website',
+        'contact', 'title', 'description', 'keywords', 'locationName',
+        'schemaVersion', 'updatedAt'
+      ])
+      && data.get('company', '') is string && data.get('company', '').size() <= 120
+      && data.get('creator', '') is string && data.get('creator', '').size() <= 120
+      && data.get('copyright', '') is string && data.get('copyright', '').size() <= 300
+      && data.get('rightsOwner', '') is string && data.get('rightsOwner', '').size() <= 120
+      && data.get('website', '') is string && data.get('website', '').size() <= 200
+      && data.get('contact', '') is string && data.get('contact', '').size() <= 200
+      && data.get('title', '') is string && data.get('title', '').size() <= 200
+      && data.get('description', '') is string && data.get('description', '').size() <= 2000
+      && data.get('keywords', '') is string && data.get('keywords', '').size() <= 2000
+      && data.get('locationName', '') is string && data.get('locationName', '').size() <= 200
+      && data.get('schemaVersion', 0) is int && data.get('schemaVersion', 0) >= 1
+      && data.get('schemaVersion', 0) <= 10;
+    }
+
+    function validDirectoryCreate(uid, data) {
+      return data.keys().hasOnly([
+        'uid', 'email', 'displayName', 'photoURL', 'status', 'createdAt', 'updatedAt'
+      ])
+      && data.uid == uid
+      && data.email is string && data.email.size() <= 200
+      && data.displayName is string && data.displayName.size() <= 120
+      && data.photoURL is string && data.photoURL.size() <= 300
+      && data.status == 'active'
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function validDirectoryOwnerUpdate(uid, data, existing) {
+      return data.keys().hasOnly([
+        'uid', 'email', 'displayName', 'photoURL', 'status', 'createdAt', 'updatedAt'
+      ])
+      && data.uid == uid
+      && data.email is string && data.email.size() <= 200
+      && data.displayName is string && data.displayName.size() <= 120
+      && data.photoURL is string && data.photoURL.size() <= 300
+      && data.status == 'active'
+      && data.createdAt == existing.createdAt
+      && data.updatedAt is timestamp;
+    }
+
+    function validDirectoryStatusUpdate(data, existing) {
+      return data.keys().hasOnly([
+        'uid', 'email', 'displayName', 'photoURL', 'status', 'createdAt', 'updatedAt', 'statusReason'
+      ])
+      && data.uid == existing.uid
+      && data.email == existing.email
+      && data.displayName == existing.displayName
+      && data.photoURL == existing.photoURL
+      && data.createdAt == existing.createdAt
+      && (data.status == 'active' || data.status == 'suspended')
+      && data.updatedAt is timestamp
+      && (data.get('statusReason', '') is string && data.get('statusReason', '').size() <= 280);
+    }
+
+    function validUsagePolicy(data) {
+      return data.keys().hasOnly([
+        'mode', 'inspectHourly', 'inspectDaily', 'cleanHourly', 'cleanDaily', 'updatedAt', 'updatedBy'
+      ])
+      && data.mode == 'unlimited'
+      && (data.get('inspectHourly', null) == null
+        || (data.inspectHourly is int && data.inspectHourly >= 0 && data.inspectHourly <= 1000000))
+      && (data.get('inspectDaily', null) == null
+        || (data.inspectDaily is int && data.inspectDaily >= 0 && data.inspectDaily <= 1000000))
+      && (data.get('cleanHourly', null) == null
+        || (data.cleanHourly is int && data.cleanHourly >= 0 && data.cleanHourly <= 1000000))
+      && (data.get('cleanDaily', null) == null
+        || (data.cleanDaily is int && data.cleanDaily >= 0 && data.cleanDaily <= 1000000))
+      && data.updatedAt is timestamp
+      && data.updatedBy is string && data.updatedBy.size() <= 128;
+    }
+
+    match /users/{uid}/profile/main {
+      allow read: if isOwner(uid) && accountActive(uid);
+      allow create, update: if isOwner(uid) && accountActive(uid) && validProfile(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid) || isSuperadmin();
+      allow list: if isSuperadmin();
+      allow create: if isOwner(uid) && validDirectoryCreate(uid, request.resource.data);
+      // Owners may refresh identity fields only while currently active —
+      // suspended accounts cannot write their own record back to active.
+      allow update: if isOwner(uid)
+        && resource.data.status == 'active'
+        && validDirectoryOwnerUpdate(uid, request.resource.data, resource.data);
+      allow update: if isSuperadmin()
+        && validDirectoryStatusUpdate(request.resource.data, resource.data);
+    }
+
+    match /adminSettings/usagePolicy {
+      allow read: if isSuperadmin();
+      allow create, update: if isSuperadmin() && validUsagePolicy(request.resource.data);
+    }
+
+    // Deny every other path by default (no catch-all allow).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

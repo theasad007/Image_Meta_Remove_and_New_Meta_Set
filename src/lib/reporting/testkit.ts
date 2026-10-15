@@ -1,4 +1,5 @@
 import type { FileCleaningResult } from "../metadata/clean/types";
+import type { FileRewriteResult } from "../metadata/rewrite/rewrite";
 import type { ImageInspectionResult } from "../../types/inspection";
 import type { QueueEntry } from "../../types/media";
 
@@ -65,6 +66,30 @@ export function minimalCleaning(overrides: Partial<FileCleaningResult> = {}): Fi
     warnings: [],
     errors: [],
     cleanedAt: "2026-10-13T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function minimalRewrite(overrides: Partial<FileRewriteResult> = {}): FileRewriteResult {
+  return {
+    fileId: "test-file",
+    inputName: "test.jpg",
+    outputName: "test-rewritten.jpg",
+    detectedFormat: "jpeg",
+    inputBytes: 1000,
+    outputBytes: 950,
+    before: minimalInspection(),
+    after: minimalInspection(),
+    output: new Blob([new Uint8Array(10)]),
+    mode: "replace_editable",
+    requestedFields: ["creator"],
+    status: "verified_rewritten",
+    changes: [
+      { group: "XMP", key: "creator", action: "rewritten", before: "", after: "A. Photographer", verification: "verified" },
+    ],
+    warnings: [],
+    errors: [],
+    rewrittenAt: "2026-10-13T00:00:00.000Z",
     ...overrides,
   };
 }

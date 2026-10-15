@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatBytes } from "../../lib/format-detection/format-bytes";
 import type { CleaningStatus } from "../../lib/metadata/clean/types";
+import type { RewriteStatus } from "../../lib/metadata/rewrite/rewrite";
 import type { ImageInspectionResult, InspectionOutcome } from "../../types/inspection";
 import type { QueueEntry } from "../../types/media";
 
@@ -130,10 +131,13 @@ interface QueueItemProps {
   inspectionResult?: ImageInspectionResult;
   cleaningState: CleaningStatus | "cleaning" | undefined;
   hasCleaningResult: boolean;
+  rewriteState?: RewriteStatus | "rewriting" | undefined;
+  hasRewriteResult?: boolean;
   busy: boolean;
   cleanable: boolean;
   selected: boolean;
   partialOptedIn: boolean;
+  rewriteEnabled?: boolean;
   onToggleSelect: (id: string) => void;
   onTogglePartial: (id: string) => void;
   onRetry: (id: string) => void;
@@ -142,13 +146,15 @@ interface QueueItemProps {
   onShow: (id: string) => void;
   onClean: (id: string) => void;
   onShowCleaning: (id: string) => void;
+  onRewrite?: (id: string) => void;
+  onShowRewrite?: (id: string) => void;
 }
 
 export default function QueueItem({
   entry, index, autoPreview, inspectionState, inspectionResult, cleaningState,
-  hasCleaningResult, busy, cleanable, selected, partialOptedIn,
-  onToggleSelect, onTogglePartial, onRetry, onRemove, onInspect, onShow,
-  onClean, onShowCleaning,
+  hasCleaningResult, rewriteState, hasRewriteResult, busy, cleanable, selected, partialOptedIn,
+  rewriteEnabled, onToggleSelect, onTogglePartial, onRetry, onRemove, onInspect, onShow,
+  onClean, onShowCleaning, onRewrite, onShowRewrite,
 }: QueueItemProps) {
   const { item } = entry;
   const outputIsBeingWritten = cleaningState === "cleaning";
@@ -167,11 +173,12 @@ export default function QueueItem({
       </div>
       <div className="min-w-0 rounded-xl bg-slate-50/80 p-2.5">
         <MetadataSummary result={inspectionResult} state={inspectionState} />
-        {cleaningState ? <div className="mt-2 flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${CLEANING_STYLES[cleaningState] ?? "bg-slate-100 text-slate-600"}`}>{cleaningState === "cleaning" ? "Cleaning…" : cleaningState.replace(/_/g, " ")}</span>{cleaningState === "partially_cleaned" ? <label className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-amber-800"><input type="checkbox" checked={partialOptedIn} onChange={() => onTogglePartial(item.id)} className="h-3.5 w-3.5 accent-amber-600" /> Include in ZIP</label> : null}</div> : null}
+        {cleaningState ? <div className="mt-2 flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${CLEANING_STYLES[cleaningState] ?? "bg-slate-100 text-slate-600"}`}>{cleaningState === "cleaning" ? "Cleaning…" : cleaningState.replace(/_/g, " ")}</span>{cleaningState === "partially_cleaned" ? <label className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-amber-800"><input type="checkbox" checked={partialOptedIn} onChange={() => onTogglePartial(item.id)} className="h-3.5 w-3.5 accent-amber-600" /> Include in ZIP</label> : null}{rewriteState ? <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-800">{rewriteState === "rewriting" ? "Rewriting…" : rewriteState.replace(/_/g, " ")}</span> : null}</div> : rewriteState ? <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-800">{rewriteState === "rewriting" ? "Rewriting…" : rewriteState.replace(/_/g, " ")}</span></div> : null}
       </div>
       <div className="flex flex-wrap gap-2 lg:justify-end">
         {inspectionResult ? <button type="button" onClick={() => onShow(item.id)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">View details</button> : <button type="button" onClick={() => onInspect(item.id)} disabled={busy} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">{inspectionState === "inspecting" ? "Inspecting…" : "Inspect metadata"}</button>}
         {cleanable ? (hasCleaningResult ? <button type="button" onClick={() => onShowCleaning(item.id)} className="btn-success !min-h-10 !px-4 !py-2 text-xs">View result</button> : <button type="button" onClick={() => onClean(item.id)} disabled={busy} className="btn-success !min-h-10 !px-4 !py-2 text-xs" title={busy ? "Wait for the current task to finish." : "Remove the selected metadata types and verify the output."}>{cleaningState === "cleaning" ? "Cleaning…" : "Remove metadata"}</button>) : <span className="self-center text-[10px] font-semibold text-slate-400">Review only</span>}
+        {cleanable && onRewrite ? (hasRewriteResult ? <button type="button" onClick={() => onShowRewrite?.(item.id)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">View rewrite</button> : <button type="button" onClick={() => onRewrite(item.id)} disabled={busy || !rewriteEnabled} title={!rewriteEnabled ? "Sign in and set a profile to enable rewriting." : "Apply the current profile to this file."} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">{rewriteState === "rewriting" ? "Rewriting…" : "Rewrite"}</button>) : null}
         {cleaningState === "failed" || cleaningState === "not_verified" ? <button type="button" onClick={() => onRetry(item.id)} disabled={busy} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">Retry</button> : null}
       </div>
       <button type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name} from queue`} data-testid={`queue-remove-${item.id}`} disabled={outputIsBeingWritten} className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full border border-slate-200 text-xl leading-none text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-40" title="Remove from queue">×</button>

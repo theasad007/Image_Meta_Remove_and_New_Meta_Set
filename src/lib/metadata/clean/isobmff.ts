@@ -25,7 +25,7 @@ const SEQUENCE_MAJORS = new Set(["avis", "msf1", "heis", "msix"]);
 const VIDEO_MAJORS = new Set(["isom", "mp41", "mp42", "avc1", "iso2", "dash"]);
 const COLLECTION_ITEM_TYPES = new Set(["grid", "iovl", "strk"]);
 const COLLECTION_REF_TYPES = new Set(["thmb", "auxl", "dimg"]);
-const MIME_XMP = "application/rdf+xml";
+export const MIME_XMP = "application/rdf+xml";
 
 class Cursor {
   private view: DataView;
@@ -133,7 +133,7 @@ export function walkTopLevel(data: Uint8Array, maxBoxes = 32): { boxes: RawBox[]
   return { boxes, trailing: data.slice(offset) };
 }
 
-function childBoxes(metaPayload: Uint8Array, skipVersionFlags = true): RawBox[] {
+export function childBoxes(metaPayload: Uint8Array, skipVersionFlags = true): RawBox[] {
   // `start` is relative to the full payload so slices stay aligned.
   const header = skipVersionFlags ? 4 : 0;
   if (metaPayload.length < header) throw new CleanRefused("failed", "Container box too short.");
@@ -152,18 +152,18 @@ function childBoxes(metaPayload: Uint8Array, skipVersionFlags = true): RawBox[] 
   return boxes;
 }
 
-function fullVersion(payload: Uint8Array): number {
+export function fullVersion(payload: Uint8Array): number {
   if (payload.length < 4) throw new CleanRefused("failed", "FullBox too short.");
   return payload[0] ?? 0;
 }
 
-interface IlocItem {
+export interface IlocItem {
   itemId: number;
   constructionMethod: number;
   extents: { offset: number; length: number }[];
 }
 
-interface ParsedIloc {
+export interface ParsedIloc {
   items: IlocItem[];
 }
 
@@ -179,7 +179,7 @@ function readSized(cursor: Cursor, size: number): number {
   throw new CleanRefused("unsupported", `ISOBMFF field width ${size} bytes is not supported.`);
 }
 
-function parseIloc(payload: Uint8Array): ParsedIloc {
+export function parseIloc(payload: Uint8Array): ParsedIloc {
   const version = fullVersion(payload);
   if (version > 2) throw new CleanRefused("unsupported", `iloc version ${version} is not supported.`);
   const cursor = new Cursor(payload, 4, payload.length);
@@ -229,7 +229,7 @@ export interface InfeEntry {
   version: number;
 }
 
-function parseIinf(payload: Uint8Array): InfeEntry[] {
+export function parseIinf(payload: Uint8Array): InfeEntry[] {
   const version = fullVersion(payload);
   const cursor = new Cursor(payload, 4, payload.length);
   const entryCount = version === 0 ? cursor.u16() : cursor.u32();
@@ -275,13 +275,13 @@ function parseInfeBody(body: Uint8Array): InfeEntry {
   return { itemId, itemType, itemName, contentType, version };
 }
 
-interface IrefEntry {
+export interface IrefEntry {
   fromId: number;
   refType: string;
   toIds: number[];
 }
 
-function parseIref(payload: Uint8Array): IrefEntry[] {
+export function parseIref(payload: Uint8Array): IrefEntry[] {
   const version = fullVersion(payload);
   if (version > 1) throw new CleanRefused("unsupported", `iref version ${version} is not supported.`);
   const cursor = new Cursor(payload, 4, payload.length);
@@ -311,7 +311,7 @@ interface IpmaEntry {
   associations: number[];
 }
 
-function parseIpma(payload: Uint8Array): { version: number; flags: number; entries: IpmaEntry[] } {
+export function parseIpma(payload: Uint8Array): { version: number; flags: number; entries: IpmaEntry[] } {
   if (payload.length < 4) throw new CleanRefused("failed", "ipma too short.");
   const version = payload[0] ?? 0;
   const flags = ((payload[1] ?? 0) << 16) | ((payload[2] ?? 0) << 8) | (payload[3] ?? 0);
@@ -335,7 +335,7 @@ function parseIpma(payload: Uint8Array): { version: number; flags: number; entri
   return { version, flags, entries };
 }
 
-function concatBytes(parts: Uint8Array[]): Uint8Array {
+export function concatBytes(parts: Uint8Array[]): Uint8Array {
   const total = parts.reduce((sum, part) => sum + part.length, 0);
   const out = new Uint8Array(total);
   let cursor = 0;
@@ -346,7 +346,7 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-function sizedBox(type: string, payload: Uint8Array): Uint8Array {
+export function sizedBox(type: string, payload: Uint8Array): Uint8Array {
   const out = new Uint8Array(8 + payload.length);
   new DataView(out.buffer).setUint32(0, out.length);
   for (let i = 0; i < 4; i += 1) out[4 + i] = type.charCodeAt(i);
@@ -354,7 +354,7 @@ function sizedBox(type: string, payload: Uint8Array): Uint8Array {
   return out;
 }
 
-function fullBox(type: string, version: number, flags: number, payload: Uint8Array): Uint8Array {
+export function fullBox(type: string, version: number, flags: number, payload: Uint8Array): Uint8Array {
   const head = new Uint8Array(4 + payload.length);
   head[0] = version;
   head[1] = (flags >> 16) & 0xff;
@@ -378,7 +378,7 @@ function encodeInfe(entry: InfeEntry): Uint8Array {
   return sizedBox("infe", body);
 }
 
-function encodeIinf(entries: InfeEntry[]): Uint8Array {
+export function encodeIinf(entries: InfeEntry[]): Uint8Array {
   const parts = [
     new Uint8Array([0, 0, 0, 0, 0, entries.length]),
     ...entries.map(encodeInfe),
@@ -387,7 +387,7 @@ function encodeIinf(entries: InfeEntry[]): Uint8Array {
   return sizedBox("iinf", concatBytes(parts));
 }
 
-function encodeIloc(items: { itemId: number; offset: number; length: number }[]): Uint8Array {
+export function encodeIloc(items: { itemId: number; offset: number; length: number }[]): Uint8Array {
   const parts: Uint8Array[] = [new Uint8Array([0, 0, 0, 0, 0x44, 0x40, 0, items.length])];
   for (const item of items) {
     if (item.itemId > 0xffff || item.offset > 0xffffffff || item.length > 0xffffffff) {
@@ -406,7 +406,7 @@ function encodeIloc(items: { itemId: number; offset: number; length: number }[])
   return sizedBox("iloc", concatBytes(parts));
 }
 
-function encodeIref(entries: IrefEntry[]): Uint8Array | null {
+export function encodeIref(entries: IrefEntry[]): Uint8Array | null {
   if (entries.length === 0) return null;
   for (const entry of entries) {
     if (entry.fromId > 0xffff || entry.toIds.some((id) => id > 0xffff)) {
@@ -431,6 +431,85 @@ export interface IsobmffCleanOutput {
   warnings: string[];
   imagePayloadFingerprint: string;
   coverageLimited: boolean;
+}
+
+export interface StillLayout {
+  topLevel: RawBox[];
+  trailing: Uint8Array;
+  meta: RawBox;
+  children: RawBox[];
+  iloc: ParsedIloc;
+  infeEntries: InfeEntry[];
+  irefEntries: IrefEntry[];
+  pitmTarget: number;
+  mdats: RawBox[];
+}
+
+/**
+ * Shared still-image layout validation (clean + rewrite paths).
+ * Throws the same CleanRefused outcomes for sequences, video brands,
+ * idat-backed, multi-mdat, movie boxes, collections and aux references.
+ */
+export function validateStillLayout(input: Uint8Array, _kind: "avif" | "heic"): StillLayout {
+  void _kind;
+  const { boxes: topLevel, trailing: inputTrailing } = walkTopLevel(input);
+  const ftyp = topLevel.find((box) => box.type === "ftyp");
+  if (!ftyp || ftyp.payload.length < 8) throw new CleanRefused("failed", "Missing ftyp box.");
+  const major = String.fromCharCode(ftyp.payload[0] ?? 0, ftyp.payload[1] ?? 0, ftyp.payload[2] ?? 0, ftyp.payload[3] ?? 0);
+  if (SEQUENCE_MAJORS.has(major)) {
+    throw new CleanRefused("unsupported", `Image-sequence brand "${major}" — sequences are out of scope; refusing rather than corrupting.`);
+  }
+  if (VIDEO_MAJORS.has(major)) {
+    throw new CleanRefused("unsupported", `Video-family brand "${major}" — not an image clean target.`);
+  }
+  if (!STILL_MAJORS.has(major)) {
+    throw new CleanRefused("unsupported", `Brand "${major}" is not a proven still-image brand (generic mif1/mp4 refused).`);
+  }
+  const meta = topLevel.find((box) => box.type === "meta");
+  if (!meta) throw new CleanRefused("failed", "No meta box present.");
+  const children = childBoxes(meta.payload);
+  const byType = new Map(children.map((box) => [box.type, box] as const));
+  const ilocBox = byType.get("iloc");
+  const iinfBox = byType.get("iinf");
+  const pitmBox = byType.get("pitm");
+  if (!ilocBox || !iinfBox || !pitmBox) {
+    throw new CleanRefused("failed", "meta box lacks iloc/iinf/pitm; structure not understood.");
+  }
+  const iloc = parseIloc(ilocBox.payload);
+  const infeEntries = parseIinf(iinfBox.payload);
+  if (infeEntries.some((entry) => entry.itemType === null)) {
+    throw new CleanRefused("unsupported", "v0/v1 item entries without item types — metadata items cannot be identified safely.");
+  }
+  for (const item of iloc.items) {
+    if (item.constructionMethod !== 0) {
+      throw new CleanRefused("unsupported", `iloc construction method ${item.constructionMethod} is not supported (idat/item offsets refused).`);
+    }
+  }
+  if (children.some((box) => box.type === "idat")) {
+    throw new CleanRefused("unsupported", "idat box present — idat-backed layouts are out of scope.");
+  }
+  const mdats = topLevel.filter((box) => box.type === "mdat");
+  if (mdats.length !== 1) {
+    throw new CleanRefused("unsupported", `Expected exactly one mdat box, found ${mdats.length}.`);
+  }
+  if (topLevel.some((box) => box.type === "moov" || box.type === "mvex" || box.type === "moof")) {
+    throw new CleanRefused("unsupported", "Movie boxes present — not a still image; refusing.");
+  }
+  for (const entry of infeEntries) {
+    if (entry.itemType && COLLECTION_ITEM_TYPES.has(entry.itemType)) {
+      throw new CleanRefused("unsupported", `Derived/collection item "${entry.itemType}" present — collections are out of scope.`);
+    }
+  }
+  const irefBox = byType.get("iref");
+  let irefEntries: IrefEntry[] = [];
+  if (irefBox) irefEntries = parseIref(irefBox.payload);
+  for (const ref of irefEntries) {
+    if (COLLECTION_REF_TYPES.has(ref.refType)) {
+      throw new CleanRefused("unsupported", `Item reference "${ref.refType}" (thumbnails/auxiliary/derived) present — out of scope.`);
+    }
+  }
+  const pitmTarget = parsePitm(pitmBox.payload);
+  return { topLevel, trailing: inputTrailing, meta, children, iloc, infeEntries, irefEntries, pitmTarget, mdats };
 }
 
 export function cleanIsobmff(
@@ -468,48 +547,8 @@ export function cleanIsobmff(
       coverageLimited: false,
     };
   }
-  const children = childBoxes(meta.payload);
-  const byType = new Map(children.map((box) => [box.type, box] as const));
-  const ilocBox = byType.get("iloc");
-  const iinfBox = byType.get("iinf");
-  const pitmBox = byType.get("pitm");
-  if (!ilocBox || !iinfBox || !pitmBox) {
-    throw new CleanRefused("failed", "meta box lacks iloc/iinf/pitm; structure not understood.");
-  }
-  const iloc = parseIloc(ilocBox.payload);
-  const infeEntries = parseIinf(iinfBox.payload);
-  if (infeEntries.some((entry) => entry.itemType === null)) {
-    throw new CleanRefused("unsupported", "v0/v1 item entries without item types — metadata items cannot be identified safely.");
-  }
-  for (const item of iloc.items) {
-    if (item.constructionMethod !== 0) {
-      throw new CleanRefused("unsupported", `iloc construction method ${item.constructionMethod} is not supported (idat/item offsets refused).`);
-    }
-  }
-  if (children.some((box) => box.type === "idat")) {
-    throw new CleanRefused("unsupported", "idat box present — idat-backed layouts are out of scope.");
-  }
-  const mdats = topLevel.filter((box) => box.type === "mdat");
-  if (mdats.length !== 1) {
-    throw new CleanRefused("unsupported", `Expected exactly one mdat box, found ${mdats.length}.`);
-  }
-  if (topLevel.some((box) => box.type === "moov" || box.type === "mvex" || box.type === "moof")) {
-    throw new CleanRefused("unsupported", "Movie boxes present — not a still image; refusing.");
-  }
-  // Collections/auxiliary: refuse rather than risk dangling relations.
-  for (const entry of infeEntries) {
-    if (entry.itemType && COLLECTION_ITEM_TYPES.has(entry.itemType)) {
-      throw new CleanRefused("unsupported", `Derived/collection item "${entry.itemType}" present — collections are out of scope.`);
-    }
-  }
-  const irefBox = byType.get("iref");
-  let irefEntries: IrefEntry[] = [];
-  if (irefBox) irefEntries = parseIref(irefBox.payload);
-  for (const ref of irefEntries) {
-    if (COLLECTION_REF_TYPES.has(ref.refType)) {
-      throw new CleanRefused("unsupported", `Item reference "${ref.refType}" (thumbnails/auxiliary/derived) present — out of scope.`);
-    }
-  }
+  const { children, iloc, infeEntries, irefEntries, pitmTarget } =
+    validateStillLayout(input, kind);
 
   // Identify removable metadata items by type/content, never by guessing.
   const removable = new Set<number>();
@@ -519,14 +558,13 @@ export function cleanIsobmff(
     if (entry.itemType === "Exif" && removeExif) removable.add(entry.itemId);
     else if (entry.itemType === "mime" && entry.contentType === MIME_XMP && removeDescriptive) removable.add(entry.itemId);
   }
-  const pitmTarget = parsePitm(pitmBox.payload);
   if (removable.has(pitmTarget)) {
     throw new CleanRefused("failed", "Primary item is itself a metadata item — refusing contradictory file.");
   }
   // ipma: drop associations of removed items (parse needed only then).
   // Note: real encoders (libavif) write iprp WITHOUT FullBox version/flags,
   // so tolerate both layouts — strict FullBox first, plain fallback second.
-  const iprpBox = byType.get("iprp");
+  const iprpBox = children.find((box) => box.type === "iprp");
   let ipmaKept: Uint8Array | null = null;
   if (iprpBox) {
     let iprpChildren: RawBox[];
@@ -771,7 +809,7 @@ export function cleanIsobmff(
   };
 }
 
-function parsePitm(payload: Uint8Array): number {
+export function parsePitm(payload: Uint8Array): number {
   const version = fullVersion(payload);
   const cursor = new Cursor(payload, 4, payload.length);
   return version === 0 ? cursor.u16() : cursor.u32();

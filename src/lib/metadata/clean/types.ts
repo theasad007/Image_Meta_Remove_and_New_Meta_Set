@@ -63,6 +63,7 @@ export function resolvesC2paRemovalTarget(policy: CleaningPolicy): boolean {
 
 export type ChangeAction =
   | "removed"
+  | "rewritten"
   | "retained_technical"
   | "retained_unsupported"
   | "unchanged"

@@ -51,6 +51,16 @@ import type {
 } from "../src/types/inspection";
 import { emptyInspection } from "../src/types/inspection";
 import type { QueueEntry } from "../src/types/media";
+import AuthPanel from "../src/components/auth/AuthPanel";
+import ProfilePanel from "../src/components/profile/ProfilePanel";
+import RewritePanel from "../src/components/rewrite/RewritePanel";
+import RewriteResultPanel from "../src/components/rewrite/RewriteResultPanel";
+import type { SignedInUser } from "../src/lib/firebase/auth";
+import { subscribeAuthState } from "../src/lib/firebase/auth";
+import { isFirebaseConfigured } from "../src/lib/firebase/config";
+import { blankProfile, PROFILE_FIELDS, validateProfile, type ProfileField } from "../src/lib/metadata/rewrite/fields";
+import { isRewriteDownloadable, type FileRewriteResult, type RewriteMode, type RewriteStatus } from "../src/lib/metadata/rewrite/rewrite";
+import { processRewriteFile } from "../src/lib/queue/rewrite-pipeline";
 
 /** Max simultaneous inspections; the queue itself has no count cap. */
 const INSPECT_CONCURRENCY = 2;
@@ -81,6 +91,16 @@ export default function Home() {
   const [cleaningTargets, setCleaningTargets] = useState<CleaningTarget[]>(DEFAULT_CLEANING_TARGETS);
   const [partialIncluded, setPartialIncluded] = useState<string[]>([]);
   const [includeAllPartials, setIncludeAllPartials] = useState(false);
+  const [user, setUser] = useState<SignedInUser | null>(null);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [isSuspended, setIsSuspended] = useState(false);
+  const [profile, setProfile] = useState(() => blankProfile());
+  const [rewriteMode, setRewriteMode] = useState<RewriteMode>("replace_editable");
+  const [rewriteFields, setRewriteFields] = useState<readonly ProfileField[]>([...PROFILE_FIELDS]);
+  const [rewrites, setRewrites] = useState<Record<string, FileRewriteResult>>({});
+  const [rewritingIds, setRewritingIds] = useState<string[]>([]);
+  const [rewriteViewId, setRewriteViewId] = useState<string | null>(null);
+  const [rewriteProgress, setRewriteProgress] = useState<string | null>(null);
   const [batch, setBatch] = useState<{ jobId: number; total: number; done: number; current: string | null } | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
   const [reportChoices, setReportChoices] = useState<ReportChoices>(DEFAULT_REPORT_CHOICES);
@@ -95,6 +115,7 @@ export default function Home() {
   const entriesRef = useRef<QueueEntry[]>([]);
   const cleanGuardRef = useRef(createRunGuard());
   const batchGuardRef = useRef(createRunGuard());
+  const rewriteGuardRef = useRef(createRunGuard());
   const zipGuardRef = useRef(createRunGuard());
   const resultsRef = useRef<Record<string, ImageInspectionResult>>({});
   const announcedQuartile = useRef(0);
@@ -102,6 +123,60 @@ export default function Home() {
   useEffect(() => {
     resultsRef.current = results;
   }, [results]);
+  // Subscribe to Firebase auth transitions when configured; guests are
+  // unaffected (no network, no account) when configuration is absent.
+  // On sign-in, best-effort extras run silently in the background: the
+  // custom-claim check (superadmin link), the account-directory
+  // self-registration, and the suspension flag. None of them may disturb
+  // the queue, inspections, or cleaned outputs.
+  useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    let unsubscribe: (() => void) | null = null;
+    let active = true;
+    void subscribeAuthState((next) => {
+      if (!active) return;
+      setUser(next);
+      if (!next) {
+        // Sign-out clears in-memory profile authority; queue/outputs stay.
+        setProfile(blankProfile());
+        setRewriteViewId(null);
+        setIsSuperadmin(false);
+        setIsSuspended(false);
+        return;
+      }
+      void (async () => {
+        try {
+          const { fetchSessionUser } = await import("../src/lib/firebase/session");
+          const session = await fetchSessionUser().catch(() => null);
+          if (!active) return;
+          setIsSuperadmin(session?.superadmin ?? false);
+        } catch {
+          if (active) setIsSuperadmin(false);
+        }
+        try {
+          const { ensureAccountRecord, fetchOwnStatus } = await import("../src/lib/firebase/directory");
+          await ensureAccountRecord(next.uid, {
+            email: next.email ?? "",
+            displayName: next.displayName ?? "",
+            photoURL: next.photoURL ?? "",
+          }).catch(() => "exists" as const);
+          if (!active) return;
+          const status = await fetchOwnStatus(next.uid);
+          if (active) setIsSuspended(status === "suspended");
+        } catch {
+          if (active) setIsSuspended(false);
+        }
+      })();
+    }).then((stop) => {
+      unsubscribe = stop;
+    }).catch(() => {
+      // Auth unavailable: guest flows continue; panel shows the error path.
+    });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
   useEffect(() => {
     if (!selectedId && !cleanViewId) return;
     const frame = window.requestAnimationFrame(() => {
@@ -356,6 +431,130 @@ export default function Home() {
     void startBatch([id]);
   };
 
+  const rewriteDepsFor = () => ({
+    getEntry: (id: string) => entriesRef.current.find((e) => e.item.id === id),
+    getInspection: (id: string) => resultsRef.current[id],
+    setInspection: (id: string, result: ImageInspectionResult) => {
+      setResults((previous) => {
+        const next = { ...previous, [id]: result };
+        resultsRef.current = next;
+        return next;
+      });
+    },
+    profile,
+    selectedFields: rewriteFields,
+    mode: rewriteMode,
+  });
+
+  const rewriteReady = (id: string): string | null => {
+    if (!user) return "Sign in to apply a profile.";
+    if (isSuspended) return "This account is suspended from cloud features — anonymous cleaning stays available.";
+    const entry = entriesRef.current.find((e) => e.item.id === id);
+    if (!entry || entry.item.detected.mediaKind !== "image") return "Only still images can be rewritten.";
+    const { profile: valid, errors } = validateProfile(profile as unknown as Record<string, unknown>);
+    void valid;
+    if (Object.keys(errors).length > 0) return "Fix profile validation errors first.";
+    if (rewriteFields.length === 0) return "Check at least one field to apply.";
+    return null;
+  };
+
+  const startRewriteBatch = async (ids: string[]) => {
+    const blocked = ids.map((id) => rewriteReady(id)).find((reason) => reason !== null);
+    if (blocked) {
+      setAnnouncement(blocked);
+      return;
+    }
+    const eligible = ids.filter((id) =>
+      entriesRef.current.some((entry) => entry.item.id === id && entry.item.detected.mediaKind === "image"),
+    );
+    if (eligible.length === 0) {
+      setAnnouncement("Nothing eligible to rewrite.");
+      return;
+    }
+    resetExportStatus();
+    const token = rewriteGuardRef.current.token();
+    setRewritingIds(eligible);
+    setRewriteProgress(`Rewriting 0/${eligible.length}…`);
+    setAnnouncement(`Rewrite started: ${eligible.length} file${eligible.length === 1 ? "" : "s"} (${rewriteMode.replace(/_/g, " ")}).`);
+    let done = 0;
+    for (const id of eligible) {
+      if (!rewriteGuardRef.current.isCurrent(token)) break;
+      if (!entriesRef.current.some((e) => e.item.id === id)) {
+        done += 1;
+        continue;
+      }
+      setRewriteProgress(`Rewriting ${done + 1}/${eligible.length}…`);
+      try {
+        const result = await processRewriteFile(id, rewriteDepsFor());
+        if (!rewriteGuardRef.current.isCurrent(token)) break;
+        if (!entriesRef.current.some((e) => e.item.id === id)) {
+          done += 1;
+          continue;
+        }
+        setRewrites((previous) => ({ ...previous, [id]: result }));
+        if (eligible.length === 1) setRewriteViewId(id);
+      } catch {
+        if (!rewriteGuardRef.current.isCurrent(token)) break;
+        const entry = entriesRef.current.find((e) => e.item.id === id);
+        if (!entry) {
+          done += 1;
+          continue;
+        }
+        setRewrites((previous) => ({
+          ...previous,
+          [id]: {
+            fileId: id,
+            inputName: entry.item.name,
+            detectedFormat: "unknown",
+            inputBytes: entry.source.size,
+            before: resultsRef.current[id] ?? emptyInspection(id, entry.item.name, entry.source.size),
+            mode: rewriteMode,
+            requestedFields: [...rewriteFields],
+            status: "failed",
+            changes: [],
+            warnings: [],
+            errors: ["An unexpected rewrite error occurred. No output was created."],
+            rewrittenAt: new Date().toISOString(),
+          },
+        }));
+      }
+      done += 1;
+      setRewriteProgress(`Rewriting ${done}/${eligible.length}…`);
+    }
+    const cancelled = !rewriteGuardRef.current.isCurrent(token);
+    setRewritingIds([]);
+    setRewriteProgress(null);
+    setAnnouncement(cancelled
+      ? "Rewrite cancelled. Finished files keep their verified results; cleaned outputs are untouched."
+      : `Rewrite finished: ${done} file${done === 1 ? "" : "s"} processed. Cleaned outputs (if any) are preserved separately.`);
+  };
+
+  const handleRewriteOne = (id: string) => {
+    setSelectedId(null);
+    setCleanViewId(null);
+    void startRewriteBatch([id]);
+  };
+
+  const handleRewriteSelected = () => {
+    const alive = new Set(entriesRef.current.map((e) => e.item.id));
+    setSelectedId(null);
+    setCleanViewId(null);
+    void startRewriteBatch(selection.filter((id) => alive.has(id)));
+  };
+
+  const handleRewriteAll = () => {
+    setSelectedId(null);
+    setCleanViewId(null);
+    void startRewriteBatch(selectableIds(entriesRef.current));
+  };
+
+  const handleCancelRewrite = () => {
+    rewriteGuardRef.current.cancel();
+    setRewritingIds([]);
+    setRewriteProgress(null);
+    setAnnouncement("Rewrite cancelled. Finished files keep their verified results.");
+  };
+
   const handleFiles = (files: File[]) => {
     if (files.length === 0) return;
     resetExportStatus();
@@ -426,8 +625,15 @@ export default function Home() {
       delete next[id];
       return next;
     });
+    setRewrites((previous) => {
+      if (!(id in previous)) return previous;
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
     setSelectedId((previous) => (previous === id ? null : previous));
     setCleanViewId((previous) => (previous === id ? null : previous));
+    setRewriteViewId((previous) => (previous === id ? null : previous));
     setAnnouncement(
       target
         ? `${target.item.name} removed. ${nextEntries.length} in queue.`
@@ -439,10 +645,13 @@ export default function Home() {
     runRef.current += 1;
     cleanGuardRef.current.cancel();
     batchGuardRef.current.cancel();
+    rewriteGuardRef.current.cancel();
     zipGuardRef.current.cancel();
     reportGuardRef.current.cancel();
     setInspectingIds([]);
     setCleaningIds([]);
+    setRewritingIds([]);
+    setRewriteProgress(null);
     setBatch(null);
     setBatchRunning(false);
     setZip(idleZipState());
@@ -456,8 +665,10 @@ export default function Home() {
     resultsRef.current = {};
     setResults({});
     setCleaning({});
+    setRewrites({});
     setSelectedId(null);
     setCleanViewId(null);
+    setRewriteViewId(null);
     setReportChoices(DEFAULT_REPORT_CHOICES);
     setReportBusy(null);
     setReportProgress(null);
@@ -496,8 +707,14 @@ export default function Home() {
       ids.forEach((id) => delete next[id]);
       return next;
     });
+    setRewrites((previous) => {
+      const next = { ...previous };
+      ids.forEach((id) => delete next[id]);
+      return next;
+    });
     setSelectedId((previous) => previous && ids.has(previous) ? null : previous);
     setCleanViewId((previous) => previous && ids.has(previous) ? null : previous);
+    setRewriteViewId((previous) => previous && ids.has(previous) ? null : previous);
     setAnnouncement(`${ids.size} selected file${ids.size === 1 ? "" : "s"} removed.`);
   };
   const toggleCleaningTarget = (target: CleaningTarget) => {
@@ -526,8 +743,14 @@ export default function Home() {
     return cleaning[id]?.status;
   };
   const hasCleaningResultFor = (id: string) => id in cleaning;
+  const rewriteOf = (id: string): RewriteStatus | "rewriting" | undefined => {
+    if (rewritingIds.includes(id)) return "rewriting";
+    return rewrites[id]?.status;
+  };
+  const hasRewriteResultFor = (id: string) => id in rewrites;
   const zipRunning = zip.phase === "archiving";
-  const busy = inspectingIds.length > 0 || cleaningIds.length > 0 || batchRunning || zipRunning || reportBusy !== null;
+  const rewriting = rewritingIds.length > 0;
+  const busy = inspectingIds.length > 0 || cleaningIds.length > 0 || batchRunning || rewriting || zipRunning || reportBusy !== null;
   const cleanableOf = (id: string) =>
     entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind === "image" &&
     entries.some((e) => e.item.id === id);
@@ -557,16 +780,26 @@ export default function Home() {
 
   // ZIP eligibility: verified + unchanged always; partials only when opted in.
   // Failures, unsupported, unverified and videos are never eligible.
-  const eligibleEntries = entries.filter((entry) => {
-    const result = cleaning[entry.item.id];
-    if (!result || !result.output || !result.outputName) return false;
-    if (result.status === "verified_clean" || result.status === "unchanged_no_target_tags") return true;
-    if (result.status === "partially_cleaned") return partialOptedInOf(entry.item.id);
-    return false;
-  });
+  // When a verified rewrite exists it takes precedence for the archive
+  // (rewritten bytes); the cleaned output stays separately downloadable.
+  const outputFor = (id: string): { blob: Blob; name: string } | null => {
+    const rewrite = rewrites[id];
+    if (rewrite && rewrite.output && rewrite.outputName && isRewriteDownloadable(rewrite.status)) {
+      if (rewrite.status === "partially_rewritten" && !partialOptedInOf(id)) return null;
+      return { blob: rewrite.output, name: rewrite.outputName };
+    }
+    const result = cleaning[id];
+    if (!result || !result.output || !result.outputName) return null;
+    if (result.status === "verified_clean" || result.status === "unchanged_no_target_tags") return { blob: result.output, name: result.outputName };
+    if (result.status === "partially_cleaned" && partialOptedInOf(id)) return { blob: result.output, name: result.outputName };
+    return null;
+  };
+  const eligibleEntries = entries.filter((entry) => outputFor(entry.item.id) !== null);
   const partialExcluded = entries.filter((entry) => {
+    const rewrite = rewrites[entry.item.id];
+    if (rewrite?.status === "partially_rewritten" && !partialOptedInOf(entry.item.id)) return true;
     const result = cleaning[entry.item.id];
-    return result?.status === "partially_cleaned" && !partialOptedInOf(entry.item.id);
+    return result?.status === "partially_cleaned" && !partialOptedInOf(entry.item.id) && !rewrite;
   }).length;
 
   const handleDownloadZip = async (withoutReports = false) => {
@@ -574,15 +807,16 @@ export default function Home() {
     const zipToken = zipGuardRef.current.token();
     const isZipActive = () => zipGuardRef.current.isCurrent(zipToken);
     const mapping = buildZipMapping(eligibleEntries.map((entry) => {
-      const result = cleaning[entry.item.id];
-      if (!result?.outputName) throw new Error("eligible entry without output name");
-      return { fileId: entry.item.id, outputName: result.outputName };
+      const out = outputFor(entry.item.id);
+      if (!out) throw new Error("eligible entry without output name");
+      return { fileId: entry.item.id, outputName: out.name };
     }));
     scopeCounter.current += 1;
     const snapshot = buildReportSnapshot({
       entries: entriesRef.current,
       inspections: resultsRef.current,
       cleanings: cleaning,
+      rewrites,
       zipMapping: mapping.map((m) => ({ fileId: m.fileId, archivePath: m.archivePath })),
       options: { format: reportChoices.format, detail: reportChoices.detail, includeOriginalValues: reportChoices.includeOriginalValues },
       scopeId: `run-${scopeCounter.current}`,
@@ -636,7 +870,7 @@ export default function Home() {
         setReportBusy(null);
       }
       const estimatedMediaBytes = mapping.reduce((sum, item) => {
-        return sum + (cleaning[item.fileId]?.output?.size ?? 0);
+        return sum + (outputFor(item.fileId)?.blob.size ?? 0);
       }, 0);
       const estimatedReportBytes = reportSources.reduce((sum, source) => sum + source.data.length, 0);
       const estimated = estimatedMediaBytes + estimatedReportBytes;
@@ -648,8 +882,8 @@ export default function Home() {
       const sources: ZipSource[] = [];
       for (const item of mapping) {
         if (!isZipActive()) throw new DOMException("cancelled", "AbortError");
-        const result = cleaning[item.fileId];
-        const blob = result?.output;
+        const out = outputFor(item.fileId);
+        const blob = out?.blob;
         if (!blob) throw new Error(`Output for ${item.fileId} vanished before archiving.`);
         sources.push({ path: item.archivePath, data: blob });
       }
@@ -724,9 +958,9 @@ export default function Home() {
   };
 
   const currentMappingForReports = () => buildZipMapping(eligibleEntries.map((entry) => {
-    const result = cleaning[entry.item.id];
-    if (!result?.outputName) throw new Error("eligible entry without output name");
-    return { fileId: entry.item.id, outputName: result.outputName };
+    const out = outputFor(entry.item.id);
+    if (!out) throw new Error("eligible entry without output name");
+    return { fileId: entry.item.id, outputName: out.name };
   }));
 
   const buildSnapshotForExport = (): ReportSnapshot => {
@@ -735,6 +969,7 @@ export default function Home() {
       entries: entriesRef.current,
       inspections: resultsRef.current,
       cleanings: cleaning,
+      rewrites,
       zipMapping: currentMappingForReports().map((m) => ({ fileId: m.fileId, archivePath: m.archivePath })),
       options: { format: reportChoices.format, detail: reportChoices.detail, includeOriginalValues: reportChoices.includeOriginalValues },
       scopeId: `run-${scopeCounter.current}`,
@@ -829,6 +1064,17 @@ export default function Home() {
   const cleanViewAlive = cleanViewId
     ? entries.some((entry) => entry.item.id === cleanViewId)
     : false;
+  const rewriteView = rewriteViewId ? rewrites[rewriteViewId] ?? null : null;
+  const rewriteViewAlive = rewriteViewId
+    ? entries.some((entry) => entry.item.id === rewriteViewId)
+    : false;
+  const rewriteEnabled = user !== null && !isSuspended;
+  const toggleRewriteField = (field: ProfileField) => {
+    resetExportStatus();
+    setRewriteFields((previous) => previous.includes(field)
+      ? previous.filter((item) => item !== field)
+      : [...previous, field]);
+  };
 
   return (
     <>
@@ -848,8 +1094,11 @@ export default function Home() {
               inspectionResultOf={(id) => results[id]}
               cleaningOf={cleaningOf}
               hasCleaningResultFor={hasCleaningResultFor}
+              rewriteOf={rewriteOf}
+              hasRewriteResultFor={hasRewriteResultFor}
+              rewriteEnabled={rewriteEnabled}
               inspectingCount={inspectingIds.length}
-              cleaningCount={cleaningIds.length}
+              cleaningCount={cleaningIds.length + rewritingIds.length}
               busy={busy}
               batchRunning={batchRunning}
               cleanableOf={cleanableOf}
@@ -870,21 +1119,76 @@ export default function Home() {
               onInspect={handleInspectOne}
               onShow={(id) => {
                 setCleanViewId(null);
+                setRewriteViewId(null);
                 setSelectedId(id);
               }}
               onClean={(id) => void handleCleanOne(id)}
               onShowCleaning={(id) => {
                 setSelectedId(null);
+                setRewriteViewId(null);
                 setCleanViewId(id);
+              }}
+              onRewrite={(id) => void handleRewriteOne(id)}
+              onShowRewrite={(id) => {
+                setSelectedId(null);
+                setCleanViewId(null);
+                setRewriteViewId(id);
               }}
               onCleanAll={handleCleanAll}
               onCleanSelected={handleCleanSelected}
               onCancelInspections={handleCancelInspections}
-              onCancelCleaning={handleCancelCleaning}
+              onCancelCleaning={() => {
+                handleCancelCleaning();
+                handleCancelRewrite();
+              }}
             />
           </div>
 
-          {(selected && selectedResult) || (cleanView && cleanViewAlive) ? (
+          <AuthPanel
+            user={user}
+            superadmin={isSuperadmin}
+            suspended={isSuspended}
+            onUser={(next) => {
+              setUser(next);
+              if (!next) {
+                setProfile(blankProfile());
+                setRewriteViewId(null);
+                setIsSuperadmin(false);
+                setIsSuspended(false);
+              }
+            }}
+            onNotice={(message) => setAnnouncement(message)}
+          />
+          <ProfilePanel
+            user={user}
+            profile={profile}
+            suspended={isSuspended}
+            onProfile={(next) => {
+              resetExportStatus();
+              setProfile(next);
+            }}
+            onNotice={(message) => setAnnouncement(message)}
+          />
+          <RewritePanel
+            user={user}
+            profileValues={profile as unknown as Record<string, unknown>}
+            mode={rewriteMode}
+            selectedFields={rewriteFields}
+            eligibleCount={entries.filter((e) => e.item.detected.mediaKind === "image").length}
+            selectedCount={selection.filter((id) => entries.some((e) => e.item.id === id && e.item.detected.mediaKind === "image")).length}
+            applying={rewriting}
+            progress={rewriteProgress}
+            onMode={(next) => {
+              resetExportStatus();
+              setRewriteMode(next);
+            }}
+            onToggleField={toggleRewriteField}
+            onApplySelected={() => void handleRewriteSelected()}
+            onApplyAll={() => void handleRewriteAll()}
+            onCancel={handleCancelRewrite}
+          />
+
+          {(selected && selectedResult) || (cleanView && cleanViewAlive) || (rewriteView && rewriteViewAlive) ? (
             <div ref={resultRegionRef} tabIndex={-1} className="scroll-mt-24">
               {selected && selectedResult ? (
                 <InspectorPanel result={selectedResult} onClose={() => setSelectedId(null)} />
@@ -893,6 +1197,15 @@ export default function Home() {
                 <BeforeAfterPanel
                   result={cleanView}
                   onClose={() => setCleanViewId(null)}
+                  onDownload={(finished) => {
+                    setAnnouncement(`Download started: ${finished.outputName ?? finished.inputName}.`);
+                  }}
+                />
+              ) : null}
+              {rewriteView && rewriteViewAlive ? (
+                <RewriteResultPanel
+                  result={rewriteView}
+                  onClose={() => setRewriteViewId(null)}
                   onDownload={(finished) => {
                     setAnnouncement(`Download started: ${finished.outputName ?? finished.inputName}.`);
                   }}

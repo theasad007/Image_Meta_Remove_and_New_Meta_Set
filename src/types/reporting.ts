@@ -27,7 +27,9 @@ export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
 
 export type ReportFileStatus =
   | "verified_clean"
+  | "verified_rewritten"
   | "partially_cleaned"
+  | "partially_rewritten"
   | "unchanged_no_target_tags"
   | "failed"
   | "unsupported"
@@ -99,6 +101,7 @@ export interface ReportFileRecord {
 export interface ReportTotals {
   files: number;
   verifiedClean: number;
+  verifiedRewritten: number;
   unchanged: number;
   partial: number;
   failed: number;

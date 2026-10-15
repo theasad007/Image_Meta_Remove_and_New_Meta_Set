@@ -127,7 +127,7 @@ function concat(arrays: Uint8Array[]): Uint8Array {
   return out;
 }
 
-function encodeChunk(type: string, data: Uint8Array): Uint8Array {
+export function encodeChunk(type: string, data: Uint8Array): Uint8Array {
   const out = new Uint8Array(12 + data.length);
   const view = new DataView(out.buffer);
   view.setUint32(0, data.length);

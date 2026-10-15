@@ -1,3 +1,5 @@
+import HeroAuthCta from "../auth/HeroAuthCta";
+
 export default function Hero() {
   return (
     <section id="top" className="mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 sm:pt-14 lg:px-8 lg:pb-12 lg:pt-18">
@@ -24,9 +26,7 @@ export default function Hero() {
               </svg>
               Select images to clean
             </a>
-            <a href="#how-it-works" className="btn-secondary hidden !min-h-12 !px-5 lg:inline-flex">
-              See how it works
-            </a>
+            <HeroAuthCta />
           </div>
           <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-slate-600" aria-label="Service highlights">
             {["No account required", "No file-count paywall", "Format preserved"].map((item) => (
