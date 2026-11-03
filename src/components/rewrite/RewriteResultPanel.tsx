@@ -12,10 +12,14 @@ export default function RewriteResultPanel({
   result,
   onClose,
   onDownload,
+  embedded = false,
+  headingId = "rewrite-result-heading",
 }: {
   result: FileRewriteResult;
-  onClose: () => void;
+  onClose?: () => void;
   onDownload: (result: FileRewriteResult) => void;
+  embedded?: boolean;
+  headingId?: string;
 }) {
   const downloadable = isRewriteDownloadable(result.status) && result.output !== undefined;
 
@@ -40,20 +44,24 @@ export default function RewriteResultPanel({
 
   return (
     <section
-      aria-labelledby="rewrite-result-heading"
+      aria-labelledby={headingId}
       data-testid="rewrite-result-panel"
-      className="surface-card mt-6 rounded-[1.5rem] p-4 sm:p-6"
+      className={embedded
+        ? "rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
+        : "surface-card mt-6 rounded-[1.5rem] p-4 sm:p-6"}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id="rewrite-result-heading" className="text-base font-semibold">
+        <h2 id={headingId} className="text-base font-semibold">
           Rewrite result: <span className="break-all">{result.inputName}</span>
         </h2>
         <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-white">
           {result.status.replace(/_/g, " ")}
         </span>
-        <button type="button" onClick={onClose} className="btn-secondary ml-auto !min-h-9 !px-3 !py-1.5">
-          Close
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="btn-secondary ml-auto !min-h-9 !px-3 !py-1.5">
+            Close
+          </button>
+        ) : null}
       </div>
 
       <p className="mt-2 text-xs text-slate-600">
@@ -138,7 +146,7 @@ export default function RewriteResultPanel({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {downloadable ? (
           <button type="button" onClick={handleDownload} data-testid="download-rewritten" className="btn-success">
-            Download rewritten image{result.status === "partially_rewritten" ? " (partial — see warnings)" : ""}
+            Download rewritten {result.detectedFormat === "mp3-audio" ? "audio" : "image"}{result.status === "partially_rewritten" ? " (partial — see warnings)" : ""}
           </button>
         ) : (
           <button

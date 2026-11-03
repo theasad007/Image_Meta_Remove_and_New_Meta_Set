@@ -4,13 +4,15 @@ import { SNIFF_WINDOW_BYTES, canonicalExtensionForSniffedKind, sniffImageBytes }
 import { inspectImage } from "../metadata/inspect/inspect";
 import { PRIVACY_SAFE_DEFAULT } from "../metadata/clean/types";
 import { DEFAULT_REWRITE_MAX_BYTES, plansForProfile, verifyRewrittenImage, type FileRewriteResult, type RewriteMode } from "../metadata/rewrite/rewrite";
+import type { GpsEngineDirective } from "../metadata/rewrite/gps";
 import type { MetadataProfile, ProfileField } from "../metadata/rewrite/fields";
 import { emptyInspection } from "../../types/inspection";
 
 /**
- * One file's rewrite pipeline (Phase 6): sniff → inspect (reused) →
- * rewrite + verify. Total function: content problems become statuses,
- * never throws for file-content reasons.
+ * One file's rewrite pipeline (Phase 6, extended Screen 09): sniff →
+ * inspect (reused) → optional GPS directive + field rewrite + verify.
+ * Total function: content problems become statuses, never throws for
+ * file-content reasons.
  */
 export interface RewriteProcessDeps {
   getEntry: (id: string) => QueueEntry | undefined;
@@ -19,6 +21,8 @@ export interface RewriteProcessDeps {
   profile: MetadataProfile;
   selectedFields: readonly ProfileField[];
   mode: RewriteMode;
+  /** Screen 09 GPS directive (write or remove), optional. */
+  gps?: GpsEngineDirective;
   maxBytes?: number;
   onStage?: (stage: "sniff" | "inspect" | "rewrite") => void;
 }
@@ -77,7 +81,7 @@ export async function processRewriteFile(
   }
 
   const { plans, expected } = plansForProfile(deps.profile, deps.selectedFields);
-  if (plans.length === 0) {
+  if (plans.length === 0 && !deps.gps) {
     return fail("failed", ["No profile fields were selected (or all selected fields are blank) — nothing to rewrite."]);
   }
 
@@ -102,6 +106,7 @@ export async function processRewriteFile(
     mode: deps.mode,
     policy: PRIVACY_SAFE_DEFAULT,
     inputWarnings: sniff.warnings,
+    ...(deps.gps ? { gps: deps.gps } : {}),
     ...(deps.maxBytes !== undefined ? { maxBytes: deps.maxBytes } : {}),
   });
 }

@@ -1,43 +1,76 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { signInWithGoogle } from "../../src/lib/firebase/auth";
+import { signInWithGoogle, signOutNow, subscribeAuthState } from "../../src/lib/firebase/auth";
 import { isFirebaseConfigured } from "../../src/lib/firebase/config";
 import { fetchSessionUser, refreshSessionToken, type SessionUser } from "../../src/lib/firebase/session";
 import {
   DEFAULT_USAGE_POLICY,
+  fetchAdminDirectoryTotals,
+  fetchOwnStatus,
   fetchUsagePolicy,
   listAccountPage,
+  listRecentAccounts,
   saveUsagePolicy,
   setAccountStatus,
   type AccountStatus,
   type AdminAccountRow,
+  type AdminDirectoryTotals,
   type UsagePolicy,
 } from "../../src/lib/firebase/directory";
+import AdminShell, { type AdminTab } from "../../src/components/admin/AdminShell";
+import AdminDashboard from "../../src/components/admin/AdminDashboard";
+import AdminUsersPanel from "../../src/components/admin/AdminUsersPanel";
+import AdminSettingsPanel from "../../src/components/admin/AdminSettingsPanel";
+import FeaturePolicyPanel from "../../src/components/admin/FeaturePolicyPanel";
+import type { EntitlementCell } from "../../src/components/admin/AdminUsersPanel";
+import {
+  fetchEntitlementForAdmin,
+  grantPremium,
+  revokePremium,
+  type EntitlementView,
+} from "../../src/lib/firebase/entitlement";
+import {
+  DEFAULT_FEATURE_POLICY,
+  fetchFeaturePolicy,
+  saveFeaturePolicy,
+  type FeatureKey,
+  type FeaturePolicy,
+  type FeaturePolicyMap,
+} from "../../src/lib/firebase/feature-policy";
 
 /**
- * Owner dashboard (Phase 6A). Static-export safe: everything runs
- * client-side behind a custom-claim route guard (`superadmin: true`).
- * Hiding this UI is never the access control — `firestore.rules` enforces
- * listing, reads, status flips, and settings writes independently.
+ * Screen 08: Super Admin Dashboard (Phase 6A foundation + Screen 08 shell).
+ * Static-export safe: everything runs client-side behind a custom-claim
+ * route guard (`superadmin: true`). Hiding UI is never the access control
+ * — `firestore.rules` enforces listing, reads, status flips and settings
+ * writes independently, and directory totals use real server count
+ * queries. Processing statistics are never invented: they are marked
+ * "Not collected — processing stays private."
  *
- * Honest scope: suspending flips a Firestore status that gates signed-in
- * CLOUD features (profile + admin reads). It does NOT revoke Google
- * login, disable the Firebase Auth user, or affect anonymous
- * browser-only cleaning. Genuine Auth disables need the owner-run Admin
- * SDK (see docs/10-admin-setup.md), never this browser page.
+ * Honest scope of suspension (unchanged from Phase 6A): flipping a
+ * Firestore status gates signed-in CLOUD features (profile + admin
+ * reads). It does NOT revoke Google login, disable the Firebase Auth
+ * user, or affect anonymous browser-only cleaning. Genuine Auth disables
+ * need the owner-run Admin SDK (docs/10-admin-setup.md).
  */
 export default function AdminPage() {
   const configured = isFirebaseConfigured();
   const [session, setSession] = useState<SessionUser | null | undefined>(() =>
     configured ? undefined : null,
   );
+  const [suspended, setSuspended] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
+  const [tab, setTab] = useState<AdminTab>("overview");
+
   const [rows, setRows] = useState<AdminAccountRow[]>([]);
+  // Overview "Recent users" — a dedicated createdAt-descending server query
+  // (never the uid-ordered first page); null while not yet loaded.
+  const [recent, setRecent] = useState<AdminAccountRow[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [listTruncated, setListTruncated] = useState(false);
@@ -47,15 +80,130 @@ export default function AdminPage() {
   const [confirmUid, setConfirmUid] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
+  const [totals, setTotals] = useState<AdminDirectoryTotals | null>(null);
+  const [totalsLoading, setTotalsLoading] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+
   const [policy, setPolicy] = useState<UsagePolicy>({ ...DEFAULT_USAGE_POLICY });
   const [policyLoaded, setPolicyLoaded] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
 
+  // ---- Feature policy (Phase 02): state, load, toggle/save --------------
+  const [featurePolicy, setFeaturePolicy] = useState<FeaturePolicy>({ ...DEFAULT_FEATURE_POLICY });
+  const [featurePolicyLoaded, setFeaturePolicyLoaded] = useState(false);
+  const [featurePolicyDegraded, setFeaturePolicyDegraded] = useState(false);
+  const [savingFeaturePolicy, setSavingFeaturePolicy] = useState(false);
+
+  const loadFeaturePolicy = useCallback(async () => {
+    setFeaturePolicy(await fetchFeaturePolicy());
+    setFeaturePolicyLoaded(true);
+    setFeaturePolicyDegraded(false);
+  }, []);
+
+  // ---- Manual Premium entitlements (Phase 03) ----------------------------
+  const [entitlements, setEntitlements] = useState<Record<string, EntitlementCell>>({});
+  const [entitleUid, setEntitleUid] = useState<string | null>(null);
+
+  /** Derive the display model at FETCH time (not render): effective
+   *  premium status depends on "now", which belongs in event handlers. */
+  const toCell = useCallback((view: EntitlementView | null): EntitlementCell => {
+    if (!view) return null;
+    const expiresMs = view.expiresAt !== null ? Date.parse(view.expiresAt) : Number.NaN;
+    const expiredByTime = !Number.isNaN(expiresMs) && expiresMs <= Date.now();
+    const premium = view.tier === "premium" && view.status === "active" && !expiredByTime;
+    const label = !Number.isNaN(expiresMs)
+      ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(expiresMs)
+      : view.tier === "premium" && view.status === "active" ? "no expiry" : "";
+    return { view, premiumActive: premium, expiryLabel: label };
+  }, []);
+
+  const loadEntitlement = useCallback(async (uid: string) => {
+    setEntitlements((previous) => ({ ...previous, [uid]: "loading" }));
+    try {
+      const view = await fetchEntitlementForAdmin(uid);
+      setEntitlements((previous) => ({ ...previous, [uid]: toCell(view) }));
+    } catch {
+      setEntitlements((previous) => ({ ...previous, [uid]: null }));
+    }
+  }, [toCell]);
+
+  const handleGrantPremium = async (row: AdminAccountRow, expiresAt: Date | null, grantReason: string) => {
+    if (!session) return;
+    setEntitleUid(row.uid);
+    setFatal(null);
+    try {
+      await grantPremium(session.uid, row.uid, { expiresAt, reason: grantReason || undefined });
+      // Read-back before claiming success (roadmap 03 §2).
+      const stored = await fetchEntitlementForAdmin(row.uid);
+      setEntitlements((previous) => ({ ...previous, [row.uid]: toCell(stored) }));
+      const cell = toCell(stored);
+      if (cell && cell !== "loading" && cell.premiumActive) {
+        setNotice(`Premium granted for ${row.email || row.uid}${cell.expiryLabel && cell.expiryLabel !== "no expiry" ? ` (expires ${cell.expiryLabel})` : " (no expiry)"}. Manual activation — no payment involved.`);
+      } else {
+        setFatal("The entitlement write was accepted but the read-back does not show active Premium — re-check the panel.");
+      }
+    } catch (err) {
+      setFatal(err instanceof Error ? err.message.slice(0, 300) : "Could not grant Premium.");
+    } finally {
+      setEntitleUid(null);
+    }
+  };
+
+  const handleRevokePremium = async (row: AdminAccountRow, revokeReason: string) => {
+    if (!session) return;
+    setEntitleUid(row.uid);
+    setFatal(null);
+    try {
+      await revokePremium(session.uid, row.uid, revokeReason || undefined);
+      const stored = await fetchEntitlementForAdmin(row.uid);
+      setEntitlements((previous) => ({ ...previous, [row.uid]: toCell(stored) }));
+      setNotice(`Premium revoked for ${row.email || row.uid}. Their stored data is kept; Premium features lock until re-granted.`);
+    } catch (err) {
+      setFatal(err instanceof Error ? err.message.slice(0, 300) : "Could not revoke Premium.");
+    } finally {
+      setEntitleUid(null);
+    }
+  };
+
+  // Suspended superadmins keep their claim but lose all cloud reads; the
+  // rules deny listing, so check honest access before rendering data.
+  const checkOwnAccess = useCallback(async (next: SessionUser | null) => {
+    if (!next) return false;
+    try {
+      setSuspended((await fetchOwnStatus(next.uid)) === "suspended");
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Auth state via subscription (restore-safe): a plain reload keeps the
+  // session because onAuthStateChanged fires after the SDK restores the
+  // stored user — a one-shot fetchSessionUser could race that restore and
+  // show "sign-in required" to an actually signed-in owner.
   useEffect(() => {
-    if (!configured || session !== undefined) return;
+    if (!configured) return;
     let active = true;
-    void fetchSessionUser().then((next) => {
-      if (active) setSession(next);
+    let unsubscribe: (() => void) | undefined;
+    void subscribeAuthState((user) => {
+      if (!active) return;
+      if (!user) {
+        setSession(null);
+        return;
+      }
+      void (async () => {
+        const next = await fetchSessionUser().catch(() => null);
+        if (!active) return;
+        if (next) {
+          setSession(next);
+          void checkOwnAccess(next);
+        } else {
+          setSession({ ...user, superadmin: false });
+        }
+      })();
+    }).then((stop) => {
+      if (active) unsubscribe = stop;
+      else stop();
     }).catch(() => {
       if (active) {
         setSession(null);
@@ -64,15 +212,35 @@ export default function AdminPage() {
     });
     return () => {
       active = false;
+      unsubscribe?.();
     };
-  }, [configured, session]);
+  }, [configured, checkOwnAccess]);
+
+  const loadTotals = useCallback(async () => {
+    setTotalsLoading(true);
+    try {
+      setTotals(await fetchAdminDirectoryTotals());
+      setRefreshedAt(
+        new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()),
+      );
+    } catch {
+      setTotals(null);
+    } finally {
+      setTotalsLoading(false);
+    }
+  }, []);
 
   const loadPage = useCallback(async (startAfter: string | null, append: boolean) => {
     setLoadingList(true);
-    setFatal(null);
     try {
       const page = await listAccountPage(50, startAfter);
-      setRows((previous) => (append ? [...previous, ...page.rows] : page.rows));
+      setRows((previous) => {
+        if (!append) return page.rows;
+        // Cursor-paged appends cannot overlap, but a defensively de-duplicated
+        // merge keeps uid-keyed rows unique under any stale/retry race.
+        const seen = new Set(previous.map((row) => row.uid));
+        return [...previous, ...page.rows.filter((row) => !seen.has(row.uid))];
+      });
       setCursor(page.nextCursor);
       setListTruncated(page.nextCursor !== null);
     } catch (err) {
@@ -82,24 +250,36 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadRecent = useCallback(async () => {
+    try {
+      setRecent(await listRecentAccounts());
+    } catch {
+      // Same availability as every other directory read; the shell shows
+      // an honest fatal notice and the card falls back to its empty state.
+      setFatal((previous) => previous ?? "Could not load the recent-accounts list. Guest cleaning on the homepage is unaffected.");
+      setRecent([]);
+    }
+  }, []);
+
   const loadPolicy = useCallback(async () => {
     try {
       setPolicy(await fetchUsagePolicy());
       setPolicyLoaded(true);
-    } catch (err) {
-      setFatal(err instanceof Error ? err.message.slice(0, 300) : "Could not load usage policy.");
+    } catch {
+      setPolicyLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!session?.superadmin || rows.length > 0 || loadingList) return;
+    if (!session?.superadmin || suspended) return;
+    if (rows.length > 0 || loadingList || totalsLoading) return;
     // Initial superadmin data load (user-initiated reloads go through the
     // buttons below, which own their loading states).
     void (async () => {
-      await loadPage(null, false);
-      await loadPolicy();
+      await Promise.all([loadPage(null, false), loadTotals()]);
+      await Promise.all([loadPolicy(), loadRecent(), loadFeaturePolicy()]);
     })();
-  }, [session, rows.length, loadingList, loadPage, loadPolicy]);
+  }, [session, suspended, rows.length, loadingList, totalsLoading, loadPage, loadTotals, loadPolicy, loadRecent, loadFeaturePolicy]);
 
   const handleSignIn = async () => {
     setSigningIn(true);
@@ -107,7 +287,23 @@ export default function AdminPage() {
     try {
       const outcome = await signInWithGoogle();
       if (outcome.status === "signed-in") {
-        setSession((await fetchSessionUser().catch(() => null)) ?? { ...outcome.user, superadmin: false });
+        const next = (await fetchSessionUser().catch(() => null))
+          ?? { ...outcome.user, superadmin: false };
+        setSession(next);
+        // The admin is a registered account like any other: sign-ins from
+        // this page self-register the directory record (homepage parity).
+        void (async () => {
+          try {
+            await ensureDirectory(next.uid, {
+              email: next.email ?? "",
+              displayName: next.displayName ?? "",
+              photoURL: next.photoURL ?? "",
+            });
+          } catch {
+            // Directory bookkeeping is best effort; loads still surface errors.
+          }
+          await checkOwnAccess(next);
+        })();
       } else if (outcome.status === "error") {
         setFatal(outcome.message);
       }
@@ -123,6 +319,7 @@ export default function AdminPage() {
     try {
       const next = await refreshSessionToken();
       setSession(next);
+      await checkOwnAccess(next);
       setNotice(next?.superadmin
         ? "Role status refreshed — superadmin claim present."
         : "Role status refreshed — no superadmin claim on this account. If the owner just promoted you, sign out and back in.");
@@ -133,6 +330,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOutNow();
+      setSession(null);
+      setSuspended(false);
+      setTab("overview");
+      setRows([]);
+      setRecent(null);
+      setTotals(null);
+      setPolicy({ ...DEFAULT_USAGE_POLICY });
+      setPolicyLoaded(false);
+      setNotice("Signed out of the admin dashboard.");
+    } catch {
+      setFatal("Sign out failed. Close the browser tab to end the session.");
+    }
+  };
+
+  const handleRefreshData = useCallback(async () => {
+    setNotice(null);
+    setFatal(null);
+    await Promise.all([loadPage(null, false), loadTotals()]);
+    await Promise.all([loadPolicy(), loadRecent(), loadFeaturePolicy()]);
+  }, [loadPage, loadTotals, loadPolicy, loadRecent, loadFeaturePolicy]);
+
   const handleStatus = async (row: AdminAccountRow, next: AccountStatus) => {
     if (!session) return;
     setActingUid(row.uid);
@@ -141,14 +362,21 @@ export default function AdminPage() {
     try {
       await setAccountStatus(session.uid, row, next, reason.trim());
       setRows((previous) => previous.map((item) => (item.uid === row.uid ? { ...item, status: next } : item)));
+      setRecent((previous) => previous?.map((item) => (item.uid === row.uid ? { ...item, status: next } : item)) ?? previous);
       setConfirmUid(null);
       setReason("");
       setNotice(next === "suspended"
         ? `${row.email || row.uid} is suspended from signed-in cloud features only (profile + admin). Google login and anonymous browser cleaning are unaffected.`
         : `${row.email || row.uid} is restored to active.`);
+      // Keep the overview metric cards in sync with the real directory.
+      const refreshed = await fetchAdminDirectoryTotals();
+      setTotals(refreshed);
+      setRefreshedAt(
+        new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Status change failed.";
-      setFatal(message.includes("backfill") ? `${message}` : message.slice(0, 300));
+      setFatal(message);
     } finally {
       setActingUid(null);
     }
@@ -168,16 +396,28 @@ export default function AdminPage() {
     }
   };
 
-  const visible = useMemo(() => {
-    const needle = filterText.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (filterStatus !== "all" && row.status !== filterStatus) return false;
-      if (needle === "") return true;
-      return row.uid.toLowerCase().includes(needle)
-        || row.email.toLowerCase().includes(needle)
-        || row.displayName.toLowerCase().includes(needle);
-    });
-  }, [rows, filterText, filterStatus]);
+  // ---- Feature policy toggle/save (declared here; state above) ----------
+  const handleToggleFeature = async (feature: FeatureKey, next: FeaturePolicyMap[FeatureKey]) => {
+    if (!session) return;
+    setSavingFeaturePolicy(true);
+    setFatal(null);
+    try {
+      const nextFeatures = { ...featurePolicy.features, [feature]: next };
+      await saveFeaturePolicy(session.uid, nextFeatures);
+      // Confirmation read-back: the UI shows "saved" only after the server
+      // accepted the write and the sanitized doc round-trips.
+      const stored = await fetchFeaturePolicy();
+      setFeaturePolicy(stored);
+      setFeaturePolicyLoaded(true);
+      setNotice(stored.features[feature] === next
+        ? `Feature policy updated: ${feature.replace(/_/g, " ")} is now ${next}.`
+        : `Feature policy saved, but the read-back value differs — re-check the panel.`);
+    } catch (err) {
+      setFatal(err instanceof Error ? err.message.slice(0, 300) : "Could not save the feature policy.");
+    } finally {
+      setSavingFeaturePolicy(false);
+    }
+  };
 
   const counts = useMemo(() => ({
     total: rows.length,
@@ -185,235 +425,173 @@ export default function AdminPage() {
     suspended: rows.filter((row) => row.status === "suspended").length,
   }), [rows]);
 
-  return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <p>
-        <a href="./" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to the cleaner</a>
-      </p>
-      <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.02em] text-slate-950">Admin Dashboard</h1>
-      <p className="mt-2 text-xs leading-5 text-slate-600">
-        Registered-account directory from Firestore — <strong>not</strong> the Firebase Auth user list
-        (browsers can never enumerate Auth users). Superadmin authorization comes from the Auth custom
-        claim, re-checked by security rules on every request.
-      </p>
+  const renderFeedback = (
+    <>
+      {notice ? <p role="status" className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">{notice}</p> : null}
+      {fatal ? <p role="alert" className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-800">{fatal}</p> : null}
+    </>
+  );
 
-      {!configured ? (
-        <section aria-label="Not configured" data-testid="admin-denied" className="surface-card mt-6 rounded-2xl p-5">
-          <h2 className="text-base font-semibold">Google sign-in is not configured</h2>
-          <p className="mt-2 text-xs text-slate-600">
-            Add the Firebase web settings (`.env.local`), rebuild, and redeploy before using this page.
-            Guest cleaning on the homepage works fully without sign-in.
-          </p>
-        </section>
-      ) : session === undefined ? (
-        <p role="status" className="mt-6 text-sm text-slate-600">Checking sign-in status…</p>
-      ) : !session ? (
-        <section aria-label="Admin sign-in required" data-testid="admin-denied" className="surface-card mt-6 rounded-2xl p-5">
-          <h2 className="text-base font-semibold">Admin sign-in required</h2>
-          <p className="mt-2 text-xs text-slate-600">
-            Sign in with the owner Google account. Ordinary signed-in users never see admin data —
-            this page and the security rules both deny them.
-          </p>
+  const guardCard = (title: string, children: React.ReactNode, action?: React.ReactNode, testid = "admin-denied") => (
+    <section aria-label={title} data-testid={testid} className="surface-card rounded-2xl p-5">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <p className="mt-2 text-xs leading-5 text-slate-600">{children}</p>
+      {action}
+    </section>
+  );
+
+  if (!configured) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <p><a href="./" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to the cleaner</a></p>
+        {guardCard("Google sign-in is not configured", (
+          <>Add the Firebase web settings (`.env.local`), rebuild, and redeploy before using this page.
+          Guest cleaning on the homepage works fully without sign-in.</>
+        ))}
+      </main>
+    );
+  }
+
+  if (session === undefined) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <div role="status" data-testid="admin-loading" className="grid gap-2">
+          <p className="text-sm font-semibold text-slate-700">Checking sign-in status…</p>
+          <div className="grid gap-2" aria-hidden="true">
+            <span className="h-4 w-56 animate-pulse rounded bg-slate-200" />
+            <span className="h-4 w-72 max-w-full animate-pulse rounded bg-slate-100" />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <p><a href="./" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to the cleaner</a></p>
+        {guardCard("Admin sign-in required", (
+          <>Sign in with the owner Google account. Ordinary signed-in users never see admin data —
+          this page and the security rules both deny them.</>
+        ), (
           <button type="button" onClick={() => void handleSignIn()} disabled={signingIn} className="btn-success mt-4 !min-h-10 text-xs">
             {signingIn ? "Opening Google…" : "Sign in with Google"}
           </button>
-        </section>
-      ) : !session.superadmin ? (
-        <section aria-label="Access denied" data-testid="admin-denied" className="surface-card mt-6 rounded-2xl p-5">
-          <h2 className="text-base font-semibold">Access denied</h2>
-          <p className="mt-2 text-xs text-slate-600">
-            Signed in as {session.email ?? session.uid}, but this account has no superadmin claim.
-            If the owner just promoted this account, refresh the login status below (ID tokens refresh
-            on re-authentication).
-          </p>
+        ))}
+        {renderFeedback}
+      </main>
+    );
+  }
+
+  if (!session.superadmin) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <p><a href="./" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to the cleaner</a></p>
+        {guardCard("Access denied", (
+          <>Signed in as {session.email ?? session.uid}, but this account has no superadmin claim.
+          If the owner just promoted this account, refresh the login status below (ID tokens refresh
+          on re-authentication).</>
+        ), (
           <button type="button" onClick={() => void handleRefresh()} disabled={refreshing} className="btn-secondary mt-4 !min-h-10 text-xs">
             {refreshing ? "Refreshing…" : "Refresh login status"}
           </button>
-        </section>
-      ) : (
-        <>
-          <section aria-label="Accounts" className="surface-card mt-6 rounded-2xl p-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Registered accounts</h2>
-              <span data-testid="admin-counts" className="text-xs text-slate-500">
-                {counts.total} shown · {counts.active} active · {counts.suspended} suspended
-                {listTruncated ? " · more pages available" : ""}
-              </span>
-              <span className="ml-auto flex gap-2">
-                <button type="button" onClick={() => void handleRefresh()} disabled={refreshing} className="btn-secondary !min-h-9 !px-3 !py-1.5 text-xs">
-                  {refreshing ? "Refreshing…" : "Refresh login status"}
-                </button>
-                <button type="button" onClick={() => void loadPage(null, false)} disabled={loadingList} className="btn-secondary !min-h-9 !px-3 !py-1.5 text-xs">
-                  Reload list
-                </button>
-              </span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <input
-                type="search"
-                value={filterText}
-                onChange={(event) => setFilterText(event.target.value)}
-                placeholder="Filter by uid, email, or name"
-                aria-label="Filter accounts"
-                className="min-w-52 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              />
-              {(["all", "active", "suspended"] as const).map((value) => (
-                <label key={value} className="flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-700">
-                  <input
-                    type="radio"
-                    name="admin-status-filter"
-                    checked={filterStatus === value}
-                    onChange={() => setFilterStatus(value)}
-                    className="h-3.5 w-3.5 accent-[#0d9474]"
-                  />
-                  {value === "all" ? "All" : value === "active" ? "Active" : "Suspended"}
-                </label>
-              ))}
-            </div>
-            {loadingList && rows.length === 0 ? (
-              <p role="status" className="mt-4 text-xs text-slate-500">Loading accounts…</p>
-            ) : visible.length === 0 ? (
-              <p className="mt-4 text-xs text-slate-500">
-                {rows.length === 0 ? "No registered accounts yet — accounts appear here after their first Google sign-in." : "No accounts match this filter."}
-              </p>
-            ) : (
-              <ul data-testid="admin-user-list" className="mt-3 grid gap-2">
-                {visible.map((row) => (
-                  <li key={row.uid} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-slate-900">{row.displayName || "(no display name)"} <span className="font-normal text-slate-500">{row.email}</span></p>
-                      <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{row.uid}</p>
-                      <p className="mt-1">
-                        <span className={`rounded-full px-2 py-0.5 font-bold ${row.status === "active" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
-                          {row.status}
-                        </span>
-                        {row.statusReason ? <span className="ml-2 text-slate-500">Note: {row.statusReason}</span> : null}
-                      </p>
-                      {confirmUid === row.uid ? (
-                        <div className="mt-2 rounded-lg bg-amber-50 p-2">
-                          <p className="font-semibold text-amber-900">
-                            {row.status === "active"
-                              ? "Suspend this account's signed-in cloud features (profile + admin)? Google login and anonymous cleaning stay available."
-                              : "Restore this account's signed-in cloud features?"}
-                          </p>
-                          {row.status === "active" ? (
-                            <input
-                              type="text"
-                              value={reason}
-                              onChange={(event) => setReason(event.target.value)}
-                              placeholder="Reason (optional, shown to admins)"
-                              maxLength={280}
-                              aria-label="Suspension reason"
-                              className="mt-2 w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs"
-                            />
-                          ) : null}
-                          <span className="mt-2 flex gap-2">
-                            <button
-                              type="button"
-                              disabled={actingUid === row.uid}
-                              onClick={() => void handleStatus(row, row.status === "active" ? "suspended" : "active")}
-                              className="btn-success !min-h-9 !px-3 !py-1.5 text-xs"
-                            >
-                              {actingUid === row.uid ? "Working…" : `Confirm ${row.status === "active" ? "suspend" : "restore"}`}
-                            </button>
-                            <button type="button" onClick={() => { setConfirmUid(null); setReason(""); }} className="btn-secondary !min-h-9 !px-3 !py-1.5 text-xs">
-                              Cancel
-                            </button>
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex gap-2 sm:justify-end">
-                      {row.status === "active" ? (
-                        <button
-                          type="button"
-                          disabled={actingUid === row.uid || session.uid === row.uid}
-                          title={session.uid === row.uid ? "You cannot suspend your own owner account here." : "Suspend cloud-feature access"}
-                          onClick={() => setConfirmUid(row.uid)}
-                          className="btn-secondary !min-h-9 !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Suspend
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={actingUid === row.uid}
-                          onClick={() => setConfirmUid(row.uid)}
-                          className="btn-secondary !min-h-9 !px-3 !py-1.5 text-xs"
-                        >
-                          Restore
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {cursor ? (
-              <button type="button" onClick={() => void loadPage(cursor, true)} disabled={loadingList} className="btn-secondary mt-3 !min-h-9 !px-3 !py-1.5 text-xs">
-                {loadingList ? "Loading…" : "Load more"}
-              </button>
-            ) : null}
-            <p className="mt-3 text-[11px] text-slate-500">
-              Accounts that signed in before the directory existed (Auth-only) cannot be suspended from
-              here until their record exists — they will appear after their next sign-in (automatic
-              self-registration) or via the owner backfill step in docs/10-admin-setup.md. Suspending
-              never disables the Firebase Auth user itself.
-            </p>
-          </section>
+        ))}
+        {renderFeedback}
+      </main>
+    );
+  }
 
-          <section aria-label="Usage policy" className="surface-card mt-6 rounded-2xl p-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Usage Policy</h2>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">Unlimited (default; no caps enabled)</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">Values below are NOT enforced</span>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
-              This static browser app cannot reliably meter local file operations — local counters can
-              be bypassed by editing scripts, clearing storage, using guest mode, or working offline.
-              These stored values only record a future intent and require a separate trusted-metering
-              design (plus approval) before any cap may be claimed or switched on. Guest inspection,
-              cleaning, ZIP, and reports stay unlimited and free. No per-file activity is logged to
-              Firebase — ever.
-            </p>
-            {!policyLoaded ? (
-              <p role="status" className="mt-3 text-xs text-slate-500">Loading policy…</p>
-            ) : (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {([
-                  ["inspectHourly", "Inspections per hour"],
-                  ["inspectDaily", "Inspections per day"],
-                  ["cleanHourly", "Cleanings per hour"],
-                  ["cleanDaily", "Cleanings per day"],
-                ] as const).map(([field, label]) => (
-                  <label key={field} className="grid gap-1 text-xs font-semibold text-slate-700">
-                    <span>{label} <span className="font-normal text-slate-400">(blank = none · not enforced)</span></span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={1000000}
-                      step={1}
-                      value={policy[field] ?? ""}
-                      onChange={(event) => {
-                        const raw = event.target.value;
-                        setPolicy((previous) => ({ ...previous, [field]: raw === "" ? null : Math.max(0, Math.min(1000000, Math.floor(Number(raw)))) }));
-                      }}
-                      placeholder="No cap"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-            <button type="button" onClick={() => void handleSavePolicy()} disabled={savingPolicy || !policyLoaded} className="btn-secondary mt-3 !min-h-10 text-xs">
-              {savingPolicy ? "Saving…" : "Record future policy values (not enforced)"}
-            </button>
-          </section>
-        </>
-      )}
+  if (suspended) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <p><a href="./" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to the cleaner</a></p>
+        {guardCard("This account's cloud access is suspended", (
+          <>Safety rules deny every signed-in cloud read for suspended accounts — including the
+          directory behind this dashboard. Public guest cleaning on the homepage is unaffected.</>
+        ), undefined, "admin-restricted")}
+        {renderFeedback}
+      </main>
+    );
+  }
 
-      {notice ? <p role="status" className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">{notice}</p> : null}
-      {fatal ? <p role="alert" className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-800">{fatal}</p> : null}
-    </main>
+  return (
+    <AdminShell
+      tab={tab}
+      onSelectTab={setTab}
+      displayName={session.displayName || "Super Admin"}
+      emailHint={session.email ?? ""}
+      photoURL={session.photoURL ?? ""}
+      refreshingRole={refreshing}
+      onRefreshRole={() => void handleRefresh()}
+      onSignOut={() => void handleSignOut()}
+      onRefreshData={() => void handleRefreshData()}
+    >
+      <div className="mx-auto w-full max-w-[1120px]">
+        {tab === "overview" ? (
+          <AdminDashboard
+            totals={totals}
+            totalsLoading={totalsLoading}
+            recent={recent}
+            directoryLoading={loadingList || recent === null}
+            refreshedAt={refreshedAt}
+            onViewAllUsers={() => setTab("users")}
+            onOpenSettings={() => setTab("settings")}
+          />
+        ) : tab === "users" ? (
+          <AdminUsersPanel
+            rows={rows}
+            counts={counts}
+            listTruncated={listTruncated}
+            loadingList={loadingList}
+            cursor={cursor}
+            actorUid={session.uid}
+            filterText={filterText}
+            onFilterText={setFilterText}
+            filterStatus={filterStatus}
+            onFilterStatus={setFilterStatus}
+            actingUid={actingUid}
+            confirmUid={confirmUid}
+            onConfirmUid={setConfirmUid}
+            reason={reason}
+            onReason={setReason}
+            onStatus={(row, next) => void handleStatus(row, next)}
+            entitlements={entitlements}
+            onLoadEntitlement={(uid) => void loadEntitlement(uid)}
+            onGrant={(row, expiresAt, grantReason) => void handleGrantPremium(row, expiresAt, grantReason)}
+            onRevoke={(row, revokeReason) => void handleRevokePremium(row, revokeReason)}
+            entitleUid={entitleUid}
+            onLoadMore={() => void loadPage(cursor, true)}
+            onReload={() => void loadPage(null, false)}
+          />
+        ) : (
+          <>
+            <AdminSettingsPanel
+              policy={policy}
+              onPolicy={setPolicy}
+              policyLoaded={policyLoaded}
+              savingPolicy={savingPolicy}
+              onSave={() => void handleSavePolicy()}
+            />
+            <FeaturePolicyPanel
+              policy={featurePolicy}
+              policyLoaded={featurePolicyLoaded}
+              degraded={featurePolicyDegraded}
+              saving={savingFeaturePolicy}
+              actorIsSuperadmin={Boolean(session?.superadmin) && !suspended}
+              onToggle={(feature, next) => void handleToggleFeature(feature, next)}
+            />
+          </>
+        )}
+        {renderFeedback}
+      </div>
+    </AdminShell>
   );
+}
+
+async function ensureDirectory(
+  uid: string,
+  identity: { email: string; displayName: string; photoURL: string },
+): Promise<void> {
+  const { ensureAccountRecord } = await import("../../src/lib/firebase/directory");
+  await ensureAccountRecord(uid, identity);
 }

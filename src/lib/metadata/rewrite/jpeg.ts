@@ -1,10 +1,13 @@
 import { parseJpegSegments } from "../clean/jpeg";
+import type { GpsEngineDirective } from "./gps";
+import { GPS_XMP_REMOVAL_QUERIES, toTiffDirective } from "./gps";
 import type { FieldWritePlan } from "./writes";
 import {
   buildApp13,
   buildTiff,
+  buildTiffWithGps,
   buildXmpPacket,
-  mergeXmpPacket,
+  editXmpPacket,
   parseApp13,
   parseTiff,
   type IptcDataset,
@@ -14,13 +17,16 @@ import {
 } from "./codecs";
 
 /**
- * JPEG profile-field writer (Phase 6): EXIF APP1, XMP APP1, IPTC APP13.
+ * JPEG profile-field writer (Phase 6) with Screen 09 GPS support.
  *
- * Always merge semantics: existing structures are read, requested fields
- * overlaid, everything unrecognized preserved verbatim (unknown TIFF tags
- * by raw value copy, unknown XMP elements by DOM merge, foreign Photoshop
- * IRBs untouched). The pipeline runs the proven cleaner first for
- * `replace` mode; this writer never deletes anything itself.
+ * EXIF APP1, XMP APP1, IPTC APP13. When a GPS directive is present the
+ * EXIF APP1 is rebuilt through `buildTiffWithGps` (write: GPS IFD created
+ * or merged; remove: GPS IFD carved out) and an existing XMP packet loses
+ * the standard coordinate mirrors ("Remove GPS location" — never the
+ * unrelated Location-Name text). Always merge semantics: existing
+ * structures are read, requested fields overlaid, everything unrecognized
+ * preserved verbatim. The pipeline runs the proven cleaner first for
+ * `replace` mode; this writer never deletes anything else itself.
  */
 
 export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
@@ -29,6 +35,7 @@ export interface JpegRewriteDetail {
   exif: RewriteChannel;
   xmp: RewriteChannel;
   iptc: RewriteChannel;
+  gps: RewriteChannel;
 }
 
 export interface JpegRewriteOutput {
@@ -58,10 +65,13 @@ export function writeJpegFields(
   input: Uint8Array,
   plans: FieldWritePlan[],
   xml: XmlCodec,
+  gps?: GpsEngineDirective,
 ): JpegRewriteOutput {
   const warnings: string[] = [];
   const skipped: JpegRewriteOutput["skipped"] = [];
   const seg = parseJpegSegments(input);
+  const gpsTiff = gps ? toTiffDirective(gps) : null;
+  const xmpRemovals = gps?.op === "remove" ? GPS_XMP_REMOVAL_QUERIES : [];
 
   const exifWrites: TiffWriteValue[] = [];
   const xmpProps: XmpProperty[] = [];
@@ -88,72 +98,101 @@ export function writeJpegFields(
     exif: exifWrites.length === 0 ? "absent" : "unsupported",
     xmp: xmpProps.length === 0 ? "absent" : "unsupported",
     iptc: iptcWrites.length === 0 ? "absent" : "unsupported",
+    gps: gps ? "unsupported" : "absent",
   };
 
-  // ---- EXIF APP1 ----
+  // ---- EXIF APP1 (fields + Screen 09 GPS write/removal) ----
   let exifSegment: Uint8Array | null = null;
-  if (exifWrites.length > 0) {
+  if (exifWrites.length > 0 || gps) {
     const exifEntries = seg.app1.filter((entry) => entry.header.startsWith("Exif"));
     const first = exifEntries[0];
     if (first) {
       const parsed = parseTiff(first.payload.slice(6));
       if (!parsed) {
-        for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing EXIF block is malformed; refusing to rewrite it." });
+        const reason = "Existing EXIF block is malformed; refusing to rewrite it.";
+        for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason });
+        if (gps) detail.gps = "unsupported";
       } else {
-        const little = parsed.little;
-        const merged = buildTiff(parsed, exifWrites, little);
+        // GPS writes/removal ride the TIFF rebuild; write-only field runs
+        // keep the original buildTiff path (zero behavior change).
+        const merged = gpsTiff
+          ? buildTiffWithGps(parsed, exifWrites, gpsTiff, parsed.little)
+          : buildTiff(parsed, exifWrites, parsed.little);
         if (!merged) {
           for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF merge failed value encoding." });
+          if (gps) detail.gps = "unsupported";
         } else {
           const payload = concat([new TextEncoder().encode("Exif\0\0"), merged]);
           if (payload.length > MAX_SEGMENT_PAYLOAD) {
             for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Merged EXIF exceeds the JPEG segment size limit." });
+            if (gps) detail.gps = "unsupported";
           } else {
             exifSegment = segment(0xe1, payload);
-            detail.exif = "merged";
+            if (exifWrites.length > 0) detail.exif = "merged";
+            if (gps) detail.gps = "merged";
           }
         }
       }
+    } else if (gpsTiff?.op === "remove") {
+      // No EXIF APP1: no GPS IFD exists to remove; nothing is created.
+      detail.gps = "absent";
     } else {
-      const built = buildTiff(null, exifWrites, true);
+      // Fresh EXIF block for fields and/or the requested GPS write.
+      const built = gpsTiff
+        ? buildTiffWithGps(null, exifWrites, gpsTiff, true)
+        : buildTiff(null, exifWrites, true);
       if (!built) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF value encoding failed." });
+        if (gps) detail.gps = "unsupported";
       } else {
         const payload = concat([new TextEncoder().encode("Exif\0\0"), built]);
-        exifSegment = segment(0xe1, payload);
-        detail.exif = "created";
+        if (payload.length > MAX_SEGMENT_PAYLOAD) {
+          for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Merged EXIF exceeds the JPEG segment size limit." });
+          if (gps) detail.gps = "unsupported";
+        } else {
+          exifSegment = segment(0xe1, payload);
+          if (exifWrites.length > 0) detail.exif = "created";
+          if (gps) detail.gps = "created";
+        }
       }
     }
   }
 
-  // ---- XMP APP1 ----
+  // ---- XMP APP1 (fields + Screen 09 coordinate removal) ----
   let xmpSegment: Uint8Array | null = null;
   const xmpMains = seg.app1.filter((entry) => entry.header.startsWith(XMP_MAIN_HEADER));
   const xmpExtended = seg.app1.filter((entry) => entry.header.startsWith(XMP_EXT_HEADER));
-  if (xmpProps.length > 0) {
+  if (xmpProps.length > 0 || xmpRemovals.length > 0) {
     if (xmpExtended.length > 0) {
       for (const field of xmpFields) {
         skipped.push({ field, channel: "XMP", reason: "Extended XMP fragments present; update refuses rather than create conflicting duplicates (use Replace mode)." });
       }
+      if (xmpRemovals.length > 0) detail.gps = "unsupported";
     } else if (xmpMains.length > 0) {
       const first = xmpMains[0];
       if (!first) {
         for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "XMP packet missing." });
+        if (xmpRemovals.length > 0) detail.gps = "unsupported";
       } else {
         const text = new TextDecoder("utf-8", { fatal: false }).decode(first.payload.slice(XMP_MAIN_HEADER.length + 1));
-        const merged = mergeXmpPacket(text, xmpProps, xml);
+        const merged = editXmpPacket(text, xmpProps, xmpRemovals, xml);
         if (merged === null) {
           for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Existing XMP packet is not parseable XML; refusing to rewrite it." });
+          if (xmpRemovals.length > 0) detail.gps = "unsupported";
         } else {
           const payload = concat([new TextEncoder().encode(`${XMP_MAIN_HEADER}\x00`), new TextEncoder().encode(merged)]);
           if (payload.length > MAX_SEGMENT_PAYLOAD) {
             for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Merged XMP exceeds the JPEG segment size limit." });
+            if (xmpRemovals.length > 0) detail.gps = "unsupported";
           } else {
             xmpSegment = segment(0xe1, payload);
-            detail.xmp = "merged";
+            if (xmpProps.length > 0) detail.xmp = "merged";
           }
         }
       }
+    } else if (xmpRemovals.length > 0 && xmpProps.length === 0) {
+      // No XMP APP1 present: no XMP coordinates exist to remove. Nothing is
+      // created; the removal claim is settled by output verification below.
     } else {
       const payload = concat([
         new TextEncoder().encode(`${XMP_MAIN_HEADER}\x00`),

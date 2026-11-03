@@ -70,6 +70,14 @@ a:active {
   border-radius: 8px;
 }
 
+/* Handwritten annotation style for the Screen 01 illustration
+   (Caveat is bundled locally via @fontsource; OFL license). */
+.font-hand {
+  font-family: "Caveat", "Segoe Script", ui-serif, Georgia, cursive;
+  font-weight: 600;
+  font-style: normal;
+}
+
 .surface-card {
   border: 1px solid rgb(220 228 238 / 92%);
   background: rgb(255 255 255 / 92%);

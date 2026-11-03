@@ -10,12 +10,19 @@ import { useRef, useState } from "react";
 export const PICKER_ACCEPT =
   "image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif," +
   "video/mp4,video/quicktime,video/webm," +
-  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm";
+  "audio/mpeg," +
+  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm,.mp3";
 
 interface UploadPanelProps {
   onFiles: (files: File[]) => void;
 }
 
+/**
+ * Screen 01 dropzone. Full-width dashed upload surface with the
+ * "Local-only processing" badge inside its top-right corner, as in the
+ * approved reference. Validation, drag/drop, keyboard activation and the
+ * picker wiring are unchanged from the implemented queue path.
+ */
 export default function UploadPanel({ onFiles }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -36,24 +43,7 @@ export default function UploadPanel({ onFiles }: UploadPanelProps) {
 
   return (
     <section aria-labelledby="upload-heading">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="section-kicker">Step 1</p>
-          <h2 id="upload-heading" className="mt-2 text-2xl font-extrabold tracking-[-0.025em] text-slate-950">
-            Add files to your workspace
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Choose one image or a batch. The files stay on this device and your originals are never changed.
-          </p>
-        </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#e7f8f2] px-3 py-1.5 text-xs font-bold text-[#08765d]">
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-            <rect x="4" y="8" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M6.7 8V6.5a3.3 3.3 0 0 1 6.6 0V8" stroke="currentColor" strokeWidth="1.6" />
-          </svg>
-          Local-only processing
-        </span>
-      </div>
+      <h2 id="upload-heading" className="sr-only">Add files to your private workspace</h2>
 
       <input
         id="private-media-picker"
@@ -103,31 +93,48 @@ export default function UploadPanel({ onFiles }: UploadPanelProps) {
           setDragOver(false);
           emit(event.dataTransfer.files);
         }}
-        className={`group relative mt-6 flex min-h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[1.4rem] border-2 border-dashed px-6 py-10 text-center transition duration-200 ${
+        className={`group relative mt-6 flex min-h-[13rem] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[1.25rem] border-[1.5px] border-dashed bg-gradient-to-b from-[#f7f9ff] to-[#eef4fd] px-6 py-12 text-center lg:py-14 motion-safe:transition-colors ${
           dragOver
-            ? "scale-[1.005] border-[#3157d5] bg-[#eef2ff] shadow-[0_16px_38px_rgba(49,87,213,.12)]"
-            : "border-slate-300 bg-slate-50/70 hover:border-[#7189e7] hover:bg-[#f5f7ff]"
+            ? "border-[#2d5be9]/80 bg-[#eef3ff]"
+            : "border-[#a9c4f2] hover:border-[#7fa1f0] hover:from-[#f4f8ff] hover:to-[#e9f1fd]"
         }`}
       >
-        <span aria-hidden="true" className="absolute -right-14 -top-20 h-52 w-52 rounded-full bg-blue-100/60 blur-3xl" />
-        <span className={`relative flex h-16 w-16 items-center justify-center rounded-2xl border bg-white text-[#3157d5] shadow-sm transition group-hover:-translate-y-0.5 ${dragOver ? "border-blue-300" : "border-slate-200"}`} aria-hidden="true">
+        <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-[#e4f6ec] px-3 py-1.5 text-xs font-bold text-[#0a7a58] shadow-[0_2px_8px_rgba(16,140,100,.08)]">
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none">
+            <rect x="4" y="8.3" width="12" height="8.7" rx="2" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M6.7 8V6.5a3.3 3.3 0 0 1 6.6 0V8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          </svg>
+          Local-only processing
+        </span>
+
+        <span
+          className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.15rem] bg-white text-[#2d5be9] shadow-[0_10px_30px_rgba(29,48,99,.14)] ring-1 ring-[#eef2fa] transition-transform motion-safe:group-hover:-translate-y-0.5"
+          aria-hidden="true"
+        >
           <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none">
-            <path d="M5 11.5A2.5 2.5 0 0 1 7.5 9h6l2.2 2.5h8.8A2.5 2.5 0 0 1 27 14v9.5a2.5 2.5 0 0 1-2.5 2.5h-17A2.5 2.5 0 0 1 5 23.5v-12Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
-            <path d="M16 21v-7m0 0-3 3m3-3 3 3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+            <path d="M5 11.5A2.5 2.5 0 0 1 7.5 9h6l2.2 2.5h8.8A2.5 2.5 0 0 1 27 14v9.5a2.5 2.5 0 0 1-2.5 2.5h-17A2.5 2.5 0 0 1 5 23.5v-12Z" stroke="currentColor" strokeWidth="1.8" strokeDasharray="0" strokeLinecap="round" />
+            <path d="M16 21.6v-7.2m0 0-3.1 3.1M16 14.4l3.1 3.1" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
           </svg>
         </span>
-        <p className="relative mt-5 text-lg font-extrabold text-slate-900">
+        <p className="relative mt-5 text-[1.25rem] font-extrabold tracking-[-0.02em] text-[#16244a]">
           {dragOver ? "Release to add your files" : "Drag and drop your files here"}
         </p>
-        <p className="relative mt-2 text-sm text-slate-600">
-          or <span data-testid="upload-choose" className="font-bold text-[#3157d5] underline decoration-blue-300 underline-offset-4">browse files</span> from your device
+        <p className="relative mt-1.5 text-[15px] text-[#64748b]">
+          or <span data-testid="upload-choose" className="font-bold text-[#2d5be9] underline decoration-blue-300 underline-offset-4 group-hover:decoration-[#2d5be9]">browse files</span> from your device
         </p>
-        <p id="upload-formats" className="relative mt-5 max-w-2xl text-xs leading-5 text-slate-500">
+        <p id="upload-formats" className="relative mt-4 max-w-2xl text-[13px] leading-[1.55] text-[#8393ad]">
           Images: JPEG, PNG, WebP, AVIF, HEIC and HEIF. MP4, MOV and WebM can be queued for preview, but video metadata tools are not available yet.
         </p>
       </label>
-      <p id="upload-feedback" data-testid="upload-feedback" aria-live="polite" className={`mt-3 min-h-5 text-sm font-medium ${feedback ? (feedback.startsWith("No files") ? "text-amber-700" : "text-emerald-700") : "text-slate-500"}`}>
-        {feedback ?? "Tip: you can select several files at once."}
+      <p
+        id="upload-feedback"
+        data-testid="upload-feedback"
+        aria-live="polite"
+        className={feedback
+          ? `mt-3 text-sm font-medium ${feedback.startsWith("No files") ? "text-amber-700" : "text-emerald-700"}`
+          : "sr-only"}
+      >
+        {feedback ?? ""}
       </p>
     </section>
   );

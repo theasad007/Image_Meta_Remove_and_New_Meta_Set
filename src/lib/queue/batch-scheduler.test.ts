@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runBatchIds } from "./batch-scheduler";
+import { mapWithConcurrency, runBatchIds } from "./batch-scheduler";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -161,5 +161,40 @@ describe("runBatchIds", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("mapWithConcurrency", () => {
+  it("bounds in-flight intake work and preserves input order", async () => {
+    let active = 0;
+    let peak = 0;
+    const values = await mapWithConcurrency([0, 1, 2, 3, 4, 5], 3, async (value) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, value % 2 === 0 ? 2 : 1));
+      active -= 1;
+      return value * 2;
+    });
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(values).toEqual([0, 2, 4, 6, 8, 10]);
+  });
+
+  it("does not impose a file-count cap", async () => {
+    const values = await mapWithConcurrency(Array.from({ length: 1200 }, (_, index) => index), 8, async (value) => value);
+    expect(values).toHaveLength(1200);
+    expect(values[1199]).toBe(1199);
+  });
+
+  it("stops scheduling new intake work after cancellation", async () => {
+    let active = true;
+    let calls = 0;
+    const values = await mapWithConcurrency(Array.from({ length: 100 }, (_, index) => index), 4, async (value) => {
+      calls += 1;
+      if (value === 3) active = false;
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return value;
+    }, () => active);
+    expect(calls).toBeLessThan(100);
+    expect(values.filter((value) => value !== undefined)).toHaveLength(calls);
   });
 });

@@ -2,12 +2,14 @@ import { expect, test, type Page } from "@playwright/test";
 import ExifReader from "exifreader";
 import fs from "node:fs";
 import path from "node:path";
-import { cleanRow, fixture, inspectRow, row, upload } from "./helpers";
+import { cleanRow, closeDetailsModal, fixture, inspectRow, row, rowImage, upload } from "./helpers";
 
 /**
  * Real browser journeys: upload → inspect → remove → before/after →
  * download → independent re-inspection of the downloaded bytes.
  * Every download is re-opened and re-read — UI badges alone prove nothing.
+ * Screen 05: metadata reading happens in the image-details dialog; the
+ * dialog is closed before the row's cleaning flow runs.
  */
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -41,6 +43,7 @@ test("JPEG journey with independent download verification", async ({ page }) => 
   await expect(panel).toContainText("TestCam");
   await expect(panel).toContainText("Harbor Noon");
   await page.screenshot({ path: "e2e/artifacts/journey-inspector.jpg" });
+  await closeDetailsModal(page);
   await cleanRow(page, "jpeg-xmp-iptc.jpg");
   const result = page.locator('[data-testid="before-after-panel"]');
   await expect(result).toContainText("verified clean");
@@ -53,6 +56,7 @@ test("PNG journey with independent download verification", async ({ page }) => {
   await upload(page, ["png-text-exif.png"]);
   await inspectRow(page, "png-text-exif.png");
   await expect(page.locator('[data-testid="inspector-panel"]')).toContainText("Synthetic PNG Title");
+  await closeDetailsModal(page);
   await cleanRow(page, "png-text-exif.png");
   await expect(page.locator('[data-testid="before-after-panel"]')).toContainText("verified clean");
   const saved = await downloadCleaned(page, "text-exif.png");
@@ -62,6 +66,7 @@ test("PNG journey with independent download verification", async ({ page }) => {
 test("WebP journey with independent download verification", async ({ page }) => {
   await upload(page, ["webp-exif-xmp.webp"]);
   await inspectRow(page, "webp-exif-xmp.webp");
+  await closeDetailsModal(page);
   await cleanRow(page, "webp-exif-xmp.webp");
   await expect(page.locator('[data-testid="before-after-panel"]')).toContainText("verified clean");
   const saved = await downloadCleaned(page, "exif-xmp.webp");
@@ -72,6 +77,7 @@ test("AVIF journey with independent download verification", async ({ page }) => 
   await upload(page, ["avif-exif-xmp.avif"]);
   await inspectRow(page, "avif-exif-xmp.avif");
   await expect(page.locator('[data-testid="inspector-panel"]')).toContainText("TestCam");
+  await closeDetailsModal(page);
   await cleanRow(page, "avif-exif-xmp.avif");
   await expect(page.locator('[data-testid="before-after-panel"]')).toContainText("verified clean");
   const saved = await downloadCleaned(page, "exif-xmp.avif");
@@ -80,12 +86,13 @@ test("AVIF journey with independent download verification", async ({ page }) => 
 
 test("HEIC journey includes a locally decoded preview", async ({ page }) => {
   await upload(page, ["heic-real-encoder.heic"]);
-  const preview = row(page, "heic-real-encoder.heic").locator("img");
+  const preview = rowImage(page, "heic-real-encoder.heic");
   await expect.poll(async () => preview.evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 60000 }).toBeGreaterThan(0);
   await expect(row(page, "heic-real-encoder.heic")).not.toContainText("cannot render this image inline");
   await expect(row(page, "heic-real-encoder.heic")).not.toContainText("corrupt");
   await inspectRow(page, "heic-real-encoder.heic");
   await expect(page.locator('[data-testid="inspector-panel"]')).toContainText("RealCam");
+  await closeDetailsModal(page);
   await cleanRow(page, "heic-real-encoder.heic");
   const result = page.locator('[data-testid="before-after-panel"]');
   await expect(result).toContainText("verified clean");

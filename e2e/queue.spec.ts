@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { fixture, row, upload } from "./helpers";
+import { cleanRow, fixture, removeRow, row, upload } from "./helpers";
 
 /**
  * Queue behavior at volume (interaction only — bulk *cleaning* is Phase 4):
@@ -34,8 +34,7 @@ test("50-file queue: add, remove, clear", async ({ page }) => {
   await expect(page.locator('[data-testid="queue-item"]')).toHaveCount(50);
   await expect(page.locator('[data-testid="queue-stats"]')).toContainText("50 files");
   // Remove one, then clear.
-  await page.locator('[data-testid="queue-item"]').first()
-    .getByRole("button", { name: /remove .* from queue/i }).click();
+  await removeRow(page, "batch-000.jpg");
   await expect(page.locator('[data-testid="queue-item"]')).toHaveCount(49);
   await page.locator('[data-testid="queue-clear"]').click();
   await expect(page.locator('[data-testid="queue-item"]')).toHaveCount(0);
@@ -62,7 +61,7 @@ test("cancel automatic inspection keeps the queue usable", async ({ page }) => {
 
 test("removing a file mid-inspection causes no stale result", async ({ page }) => {
   await upload(page, ["jpeg-exif.jpg", "jpeg-xmp-iptc.jpg"]);
-  await row(page, "jpeg-exif.jpg").getByRole("button", { name: /remove .* from queue/i }).click();
+  await removeRow(page, "jpeg-exif.jpg");
   await expect(row(page, "jpeg-exif.jpg")).toHaveCount(0);
   await expect(row(page, "jpeg-xmp-iptc.jpg")).toBeVisible();
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
@@ -70,8 +69,7 @@ test("removing a file mid-inspection causes no stale result", async ({ page }) =
 
 test("repeated downloads yield identical bytes", async ({ page }) => {
   await upload(page, ["png-text-exif.png"]);
-  await row(page, "png-text-exif.png").getByRole("button", { name: "Remove metadata" }).click();
-  await page.locator('[data-testid="before-after-panel"]').waitFor();
+  await cleanRow(page, "png-text-exif.png");
   const first = page.waitForEvent("download");
   await page.locator('[data-testid="download-cleaned"]').click();
   const firstBytes = fs.readFileSync(await (await first).path() as string);
@@ -90,7 +88,7 @@ test("65 MB file is declined by budget with a message, queue survives", async ({
   fs.writeFileSync(bigPath, big);
   await page.locator('[data-testid="file-input"]').setInputFiles([bigPath]);
   await expect(row(page, "huge.jpg")).toBeVisible();
-  await row(page, "huge.jpg").getByRole("button", { name: "Remove metadata" }).click();
+  await cleanRow(page, "huge.jpg");
   await expect(page.locator('[data-testid="before-after-panel"]')).toContainText(/budget/i);
   await upload(page, ["jpeg-empty.jpg"]);
   await expect(row(page, "jpeg-empty.jpg")).toBeVisible();
@@ -102,7 +100,7 @@ test("no image bytes leave the browser (request log proof)", async ({ page }) =>
   page.on("request", (request) => requests.push({ method: request.method(), url: request.url() }));
   await upload(page, ["jpeg-ai.jpg", "heic-exif-gps.heic"]);
   await expect(row(page, "jpeg-ai.jpg").getByRole("button", { name: "View details" })).toBeVisible({ timeout: 120000 });
-  await row(page, "jpeg-ai.jpg").getByRole("button", { name: "Remove metadata" }).click();
+  await cleanRow(page, "jpeg-ai.jpg");
   await expect(page.locator('[data-testid="before-after-panel"]')).toBeVisible({ timeout: 60000 });
   for (const request of requests) {
     // Local page assets (GET) and blob: preview URLs only. Blob URLs are

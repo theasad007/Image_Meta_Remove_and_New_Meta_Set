@@ -11,15 +11,19 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:premium": "node scripts/run-premium-e2e.mjs",
     "test:rules": "firebase emulators:exec --project phase6-rules-test --only firestore \"vitest run src/lib/firebase/rules.test.ts\""
   },
   "dependencies": {
     "@contentauth/c2pa-web": "^0.15.3",
+    "@fontsource/caveat": "^5.3.0",
     "exifreader": "^4.50.0",
     "fflate": "^0.8.3",
     "firebase": "13.0.0",
     "heic-to": "^1.6.6",
-    "next": "16.4.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.59.0",
+    "next": "16.4.3",
     "pdf-lib": "^1.17.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -28,16 +32,17 @@
     "@firebase/rules-unit-testing": "6.0.0",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "4.3.3",
+    "@types/leaflet": "^1.9.12",
     "@types/node": "^24.0.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@xmldom/xmldom": "^0.9.12",
     "eslint": "10.12.0",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.3",
     "postcss": "8.5.30",
     "tailwindcss": "4.3.3",
     "typescript": "^5.9.3",
-    "vitest": "5.0.4"
+    "vitest": "^5.0.4"
   },
   "optionalDependencies": {
     "@rolldown/binding-darwin-arm64": "^1.2.13"

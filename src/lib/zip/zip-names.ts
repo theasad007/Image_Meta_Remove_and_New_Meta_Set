@@ -34,7 +34,9 @@ function sanitizeExtension(extension: string): string {
 }
 
 export function sanitizeZipPath(stem: string, extension: string): string {
-  return `${ZIP_IMAGE_FOLDER}${sanitizeStem(stem)}.${sanitizeExtension(extension)}`;
+  // Phase 11: audio outputs live under audio/ (images keep images/).
+  const folder = extension.toLowerCase() === "mp3" ? "audio/" : ZIP_IMAGE_FOLDER;
+  return `${folder}${sanitizeStem(stem)}.${sanitizeExtension(extension)}`;
 }
 
 export interface ZipMappingInput {

@@ -28,6 +28,34 @@ export interface BatchRunOutcome {
   cancelled: boolean;
 }
 
+/**
+ * Map a large intake list with bounded in-flight work.  The result order is
+ * stable, while workers pull one item at a time so a 1,000+ file selection
+ * never creates one read promise per file at once.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  requestedConcurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+  isActive: () => boolean = () => true,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const concurrency = Math.max(1, Math.min(8, Math.floor(requestedConcurrency) || 1));
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function runWorker(): Promise<void> {
+    while (true) {
+      if (!isActive()) return;
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index] as T, index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()));
+  return results;
+}
+
 export async function runBatchIds<T>(options: BatchRunOptions<T>): Promise<BatchRunOutcome> {
   const { ids, isActive, isEligible, process, onDone, onProgress } = options;
   const concurrency = Math.max(1, Math.min(2, options.concurrency ?? 1));

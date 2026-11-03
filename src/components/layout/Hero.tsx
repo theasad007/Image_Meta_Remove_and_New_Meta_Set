@@ -1,82 +1,98 @@
-import HeroAuthCta from "../auth/HeroAuthCta";
+import { cn } from "../../lib/cn";
+import HeroIllustration from "./HeroIllustration";
 
+// Note: the standalone "Sign in / Sign up with Google" hero button was
+// removed on user request (final visual polish). Google authentication
+// remains available on the Profile page (/account/profile) — unchanged.
+
+const BENEFITS = [
+  {
+    title: "No account required for cleaning",
+    // Solid emerald tile with white glyph, as in the approved reference.
+    tile: "bg-[#0d9e6e] text-white shadow-[0_8px_18px_rgba(13,158,110,.28)]",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+        <rect x="4.5" y="9.4" width="15" height="10.6" rx="2.6" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M8.1 9.2V7a3.9 3.9 0 0 1 7.8 0v2.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        <circle cx="12" cy="14.7" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    title: "Two focused tools, one queue",
+    tile: "bg-[#e9f2fe] text-[#2d5be9]",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 3.6 9 4.4-9 4.4L3 8l9-4.4Z" />
+        <path d="m3 12.6 9 4.4 9-4.4" />
+        <path d="m3 16.9 9 4.4 9-4.4" opacity=".55" />
+      </svg>
+    ),
+  },
+  {
+    title: "Original format preserved",
+    tile: "bg-[#f3eefe] text-[#8430e0]",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+        <path d="M9.8 3.9c.4-1.1 1.9-1.1 2.2 0l1 3.3a3.9 3.9 0 0 0 2.6 2.6l3.3 1c1.1.4 1.1 1.9 0 2.2l-3.3 1a3.9 3.9 0 0 0-2.6 2.6l-1 3.3c-.4 1.1-1.9 1.1-2.2 0l-1-3.3a3.9 3.9 0 0 0-2.6-2.6l-3.3-1c-1.1-.4-1.1-1.9 0-2.2l3.3-1a3.9 3.9 0 0 0 2.6-2.6l1-3.3Z" />
+        <path d="M18.9 2.8c.2-.6 1-.6 1.2 0l.5 1.5c.3.9.9 1.5 1.8 1.8l1.5.5c.6.2.6 1 0 1.2l-1.5.5a2.6 2.6 0 0 0-1.8 1.8l-.5 1.5c-.2.6-1 .6-1.2 0l-.5-1.5a2.6 2.6 0 0 0-1.8-1.8l-1.5-.5c-.6-.2-.6-1 0-1.2l1.5-.5a2.6 2.6 0 0 0 1.8-1.8l.5-1.5Z" />
+      </svg>
+    ),
+    // Honest qualifier: preservation holds for supported cleaning operations.
+    note: "within supported operations",
+  },
+];
+
+/**
+ * Hero for the Screen 01 empty homepage. Two-column on desktop: copy on
+ * the left, decorative product illustration on the right. No CTA buttons
+ * live here anymore — the header "Choose files" pill and the dropzone
+ * below are the upload entry points, matching the approved reference.
+ */
 export default function Hero() {
   return (
-    <section id="top" className="mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 sm:pt-14 lg:px-8 lg:pb-12 lg:pt-18">
-      <div className="grid items-center gap-9 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,.85fr)] lg:gap-16">
+    <section id="top" className="mx-auto max-w-7xl overflow-x-clip px-4 pb-6 pt-8 sm:px-6 sm:pt-10 lg:px-8 lg:pb-4 lg:pt-14">
+      <div className="grid items-center gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)] lg:gap-x-10 xl:gap-x-14">
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-sm">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
+          <p className="inline-flex items-center gap-2.5 rounded-full border border-[#d9f0e4] bg-[#e4f6ec] py-1.5 pl-1.5 pr-4 text-[13px] font-bold text-[#0a7a58] shadow-[0_2px_10px_rgba(16,140,100,.08)]">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0da16e] text-white" aria-hidden="true">
               <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none">
-                <path d="m5.5 10.2 2.8 2.8 6.2-6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                <rect x="4.4" y="8.3" width="11.2" height="8" rx="2" stroke="currentColor" strokeWidth="1.7" />
+                <path d="M6.9 8V6.6a3.1 3.1 0 0 1 6.2 0V8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
               </svg>
             </span>
             Private by design — files never leave this device
           </p>
-          <h1 className="mt-6 max-w-3xl text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.045em] text-[#14213d] sm:text-6xl lg:text-[4rem]">
-            Remove hidden metadata. Keep your images yours.
+
+          <h1 className="mt-5 text-[2.6rem] font-extrabold leading-[1.05] tracking-[-0.042em] text-[#111c3c] sm:text-[3.3rem] lg:mt-6 lg:text-[3.7rem]">
+            <span className="block">Remove hidden</span>
+            <span className="block">metadata. <span className="text-[#2d5be9]">Keep your</span></span>
+            <span className="block">images <span className="text-[#2d5be9]">yours.</span></span>
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
-            Inspect and clean sensitive EXIF, GPS, XMP, IPTC and text metadata directly in your browser. Your original stays untouched, and every cleaned copy is checked before download.
+
+          <p className="mt-5 max-w-[36rem] text-[16.5px] leading-[1.7] text-[#5a6b85]">
+            Choose the AI Metadata or Metadata &amp; GeoTag tool below to inspect the evidence that matters, remove supported metadata, and download a verified copy. Your original files are never changed.
           </p>
-          <div className="mt-7 flex flex-col gap-3 min-[430px]:flex-row">
-            <a href="#upload" className="btn-primary !min-h-12 !px-5">
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none">
-                <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-              </svg>
-              Select images to clean
-            </a>
-            <HeroAuthCta />
-          </div>
-          <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-slate-600" aria-label="Service highlights">
-            {["No account required", "No file-count paywall", "Format preserved"].map((item) => (
-              <li key={item} className="flex items-center gap-2">
-                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#0d9474]" />
-                {item}
+
+          <ul className="mt-7 flex flex-wrap items-stretch gap-2.5" aria-label="Service highlights">
+            {BENEFITS.map((benefit) => (
+              <li
+                key={benefit.title}
+                className="flex items-center gap-2.5 rounded-[1.1rem] border border-[#e9eef6] bg-white px-3 py-2.5 shadow-[0_2px_12px_rgba(23,31,53,.05)]"
+              >
+                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.85rem]", benefit.tile)} aria-hidden="true">
+                  {benefit.icon}
+                </span>
+                <span className="max-w-[7rem] text-[13.5px] font-bold leading-[1.3] text-[#1c2a4a]">
+                  {benefit.title}
+                  {benefit.note ? <span className="sr-only"> ({benefit.note})</span> : null}
+                </span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div id="how-it-works" className="surface-card relative hidden overflow-hidden rounded-[1.75rem] p-5 sm:p-7 lg:block">
-          <div aria-hidden="true" className="absolute -right-14 -top-16 h-44 w-44 rounded-full bg-blue-100/80 blur-2xl" />
-          <div className="relative">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="section-kicker">Simple workflow</p>
-                <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em]">Private from start to finish</h2>
-              </div>
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e9edff] text-[#3157d5]">
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none">
-                  <path d="M12 3 19 5.6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10v-5L12 3Z" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M9 12h6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-                </svg>
-              </span>
-            </div>
-            <ol className="mt-6 space-y-3">
-              {[
-                ["01", "Add your files", "Choose one image or a whole batch. Nothing is sent to a server."],
-                ["02", "Inspect or remove", "Review found metadata, then create a format-preserving cleaned copy."],
-                ["03", "Verify and download", "The copy is re-read before single-file, ZIP, CSV or PDF download."],
-              ].map(([step, title, text]) => (
-                <li key={step} className="flex gap-4 rounded-2xl border border-slate-200/80 bg-white/80 p-4">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0f3ff] text-xs font-extrabold text-[#3157d5]">{step}</span>
-                  <span>
-                    <span className="block text-sm font-bold text-slate-900">{title}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-600">{text}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-5 flex items-center gap-2 text-xs font-semibold text-slate-500">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:animate-none" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              Processing happens locally in this tab
-            </p>
-          </div>
-        </div>
+        <HeroIllustration />
       </div>
     </section>
   );

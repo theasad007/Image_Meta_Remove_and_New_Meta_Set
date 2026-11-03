@@ -16,7 +16,9 @@ export const SUMMARY_COLUMNS = [
   "IPTC Before", "C2PA Before", "GPS Before", "AI Indicators",
   "Detected Tag Count", "Verified Removed Tag Count", "Verified Rewritten Tag Count",
   "Retained Tag Count", "Unverified/Unsupported Count", "EXIF After",
-  "XMP After", "IPTC After", "C2PA After", "GPS After", "Warnings", "Errors",
+  "XMP After", "IPTC After", "C2PA After", "GPS After",
+  "Audio ID3 Before", "Audio ID3 After", "Audio Operation", "MPEG Payload Preserved",
+  "Warnings", "Errors",
 ] as const;
 
 export const TAGS_COLUMNS = [
@@ -115,7 +117,8 @@ export async function buildSummaryCsv(
       categoryCell(snapshot, i, "categoriesBefore", "EXIF"),
       categoryCell(snapshot, i, "categoriesBefore", "XMP"),
       categoryCell(snapshot, i, "categoriesBefore", "IPTC"),
-      record.c2paState,
+      // SOL-010: separate before/after C2PA states (never duplicated).
+      record.c2paBefore,
       record.gpsBefore,
       record.aiIndicatorsBefore,
       String(record.detectedTagCount),
@@ -126,8 +129,12 @@ export async function buildSummaryCsv(
       categoryCell(snapshot, i, "categoriesAfter", "EXIF"),
       categoryCell(snapshot, i, "categoriesAfter", "XMP"),
       categoryCell(snapshot, i, "categoriesAfter", "IPTC"),
-      record.c2paState,
+      record.c2paAfter,
       record.gpsAfter,
+      record.audioId3Before,
+      record.audioId3After,
+      record.audioOperation,
+      record.mpegPayloadPreserved,
       warningsCell(record.warnings),
       warningsCell(record.errors),
     ]);

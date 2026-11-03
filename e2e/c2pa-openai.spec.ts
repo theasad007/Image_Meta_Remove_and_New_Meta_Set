@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import ExifReader from "exifreader";
 import fs from "node:fs";
-import { inspectRow, row, upload } from "./helpers";
+import { cleanRow, closeDetailsModal, detailsPanel, inspectRow, openDetailsTab, row, upload } from "./helpers";
 
 /**
  * P0 C2PA/OpenAI proof: the SHIPPED browser path (real WASM validator)
  * against the production static export. Fixtures are our own synthetic
  * files signed locally with c2patool 0.27.22 under its built-in TEST
  * identity (see docs/09) — untrusted by design, structurally genuine.
+ * Screen 05: C2PA evidence is read from the dialog's dedicated tab.
  */
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -21,9 +22,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openC2paSection(page: Page) {
-  const panel = page.locator('[data-testid="inspector-panel"]');
-  await panel.getByText("C2PA / Content Credentials", { exact: false }).first().click();
-  return panel;
+  await openDetailsTab(page, "c2pa");
+  return detailsPanel(page);
 }
 
 test("genuine signed JPEG exercises the detected path with honest semantics", async ({ page }) => {
@@ -86,7 +86,8 @@ test("ordinary images and dummy markers report not detected — never fake-detec
     // preflight-hit; an ordinary photo has no store at all.
     await expect(panel).toContainText("not detected");
     await expect(panel).toContainText("No embedded C2PA Manifest Store identifier was found");
-    await page.getByRole("button", { name: "Close" }).click();
+    // The next loop file is opened only after the current dialog is closed.
+    await closeDetailsModal(page);
   }
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
 });
@@ -98,8 +99,7 @@ test("expired credential reports its own codes, not tampering", async ({ page })
   // real-world expired-signer files (e.g. older ChatGPT PNG exports).
   await upload(page, ["expired-cert.jpg"]);
   await inspectRow(page, "expired-cert.jpg");
-  const panel = page.locator('[data-testid="inspector-panel"]');
-  await panel.getByText("C2PA / Content Credentials", { exact: false }).first().click();
+  const panel = await openC2paSection(page);
   await expect(panel).toContainText("detected");
   await expect(panel).toContainText("Invalid");
   await expect(panel).toContainText("signingCredential.expired");
@@ -112,8 +112,7 @@ test("expired credential reports its own codes, not tampering", async ({ page })
 test("signed PNG validates in-browser via its real caBX chunk", async ({ page }) => {
   await upload(page, ["signed-c2pa.png"]);
   await inspectRow(page, "signed-c2pa.png");
-  const pngPanel = page.locator('[data-testid="inspector-panel"]');
-  await pngPanel.getByText("C2PA / Content Credentials", { exact: false }).first().click();
+  const pngPanel = await openC2paSection(page);
   await expect(pngPanel).toContainText("detected");
   await expect(pngPanel).toContainText("Manifest Store");
   await expect(pngPanel).toContainText("AI Metadata Remover P0 proof signer");
@@ -128,12 +127,12 @@ test("OpenAI CreatorTool is flagged; caption-only mentions are ignored", async (
   await expect(row(page, "jpeg-openai.jpg")).toContainText("OpenAI 1");
   await expect(row(page, "jpeg-caption-openai.jpg")).toContainText("AI 0");
   await inspectRow(page, "jpeg-openai.jpg");
-  const panel = page.locator('[data-testid="inspector-panel"]');
+  const panel = detailsPanel(page);
   await expect(panel).toContainText('Generator signature "openai" in CreatorTool');
   await expect(panel).toContainText("OpenAI GPT-Image");
-  await page.getByRole("button", { name: "Close" }).click();
+  await closeDetailsModal(page);
   await inspectRow(page, "jpeg-caption-openai.jpg");
-  await expect(page.locator('[data-testid="inspector-panel"]')).toContainText(
+  await expect(detailsPanel(page)).toContainText(
     "No AI-associated metadata indicators found",
   );
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);
@@ -141,7 +140,7 @@ test("OpenAI CreatorTool is flagged; caption-only mentions are ignored", async (
 
 test("cleaning a signed file removes the manifest with verification", async ({ page }) => {
   await upload(page, ["signed-c2pa.jpg"]);
-  await row(page, "signed-c2pa.jpg").getByRole("button", { name: "Remove metadata" }).click();
+  await cleanRow(page, "signed-c2pa.jpg");
   const result = page.locator('[data-testid="before-after-panel"]');
   await result.waitFor();
   // The manifest store is gone: verified removal, not a silent strip.

@@ -4,8 +4,9 @@ import { getFirebaseDb } from "./config";
  * Registered-account directory + usage-policy settings (Phase 6A).
  *
  * Firestore layout:
- * - `users/{uid}` — minimal directory record (uid, verified Google
- *   email/display name, photoURL, status `active`/`suspended`, createdAt,
+ * - `users/{uid}` — minimal directory record (uid and Auth-claim-bound
+ *   email; displayName/photoURL are explicitly unverified profile snapshots,
+ *   status `active`/`suspended`, createdAt,
  *   updatedAt, optional superadmin-only statusReason). NEVER media,
  *   filenames, scans, GPS, downloads, or history.
  * - `users/{uid}/profile/main` — existing Phase 6 custom-metadata profile
@@ -27,6 +28,29 @@ export interface DirectoryRecord {
   displayName: string;
   photoURL: string;
   status: AccountStatus;
+}
+
+/** Real directory totals for the Screen 08 overview (server count queries;
+ *  single-field `status` filter needs no composite index). Everything
+ *  else "dashboard-like" (file counts, sizes, activity) stays uncollected:
+ *  processing is browser-only and is never reported server-side. */
+export interface AdminDirectoryTotals {
+  total: number;
+  suspended: number;
+}
+
+export async function fetchAdminDirectoryTotals(): Promise<AdminDirectoryTotals> {
+  const db = await getFirebaseDb();
+  const { collection, query, where, getCountFromServer } = await import("firebase/firestore");
+  const base = collection(db, "users");
+  const [totalSnap, suspendedSnap] = await Promise.all([
+    getCountFromServer(base),
+    getCountFromServer(query(base, where("status", "==", "suspended"))),
+  ]);
+  return {
+    total: totalSnap.data().count,
+    suspended: suspendedSnap.data().count,
+  };
 }
 
 export interface UsagePolicy {
@@ -214,19 +238,16 @@ export interface AdminAccountRow {
   statusReason?: string;
 }
 
-/** Superadmin: first page of the directory (Firestore dir only — never Auth listUsers). */
-export async function listAccountPage(pageSize: number, cursorUid: string | null): Promise<{ rows: AdminAccountRow[]; nextCursor: string | null }> {
-  const db = await getFirebaseDb();
-  const { collection, query, orderBy, limit, startAfter, getDocs } = await import("firebase/firestore");
-  const base = collection(db, "users");
-  const constraints = cursorUid
-    ? [orderBy("__name__"), startAfter(cursorUid), limit(Math.max(1, Math.min(pageSize, 100)))]
-    : [orderBy("__name__"), limit(Math.max(1, Math.min(pageSize, 100)))];
-  const snap = await getDocs(query(base, ...constraints));
+const MAX_PAGE = 100;
+/** Overview-card slice size (Screen 08 "Recent users"). */
+const RECENT_USERS_COUNT = 5;
+
+/** View mapping shared by every directory read (docs with no usable uid are skipped). */
+function mapDirectoryRows(docs: readonly { id: string; data(): Record<string, unknown> }[]): AdminAccountRow[] {
   const rows: AdminAccountRow[] = [];
-  snap.forEach((docSnap) => {
-    const data = docSnap.data() as Record<string, unknown>;
-    if (typeof data.uid !== "string") return;
+  for (const docSnap of docs) {
+    const data = docSnap.data();
+    if (typeof data.uid !== "string") continue;
     rows.push({
       uid: data.uid,
       email: typeof data.email === "string" ? data.email : "",
@@ -235,8 +256,57 @@ export async function listAccountPage(pageSize: number, cursorUid: string | null
       createdAt: data.createdAt ?? null,
       ...(typeof data.statusReason === "string" ? { statusReason: data.statusReason } : {}),
     });
-  });
-  return { rows, nextCursor: rows.length > 0 ? (rows[rows.length - 1]?.uid ?? null) : null };
+  }
+  return rows;
+}
+
+/**
+ * Superadmin: one page of the directory (Firestore dir only — never Auth
+ * listUsers), ordered by document name, with reliable end-of-list
+ * detection: one EXTRA record is fetched (`effective + 1`) and dropped so
+ * `nextCursor` is only non-null when another page genuinely exists — a
+ * page that exactly fills the remaining directory no longer advertises a
+ * "Load more" that would return nothing. The cursor is the last loaded
+ * document's ID (the `__name__` position), so pages never overlap or
+ * duplicate records. Status flips change fields, never document keys, so
+ * an in-flight cursor keeps pointing at the same position.
+ */
+export async function listAccountPage(pageSize: number, cursorUid: string | null): Promise<{ rows: AdminAccountRow[]; nextCursor: string | null }> {
+  const effective = Math.max(1, Math.min(pageSize, MAX_PAGE));
+  const db = await getFirebaseDb();
+  const { collection, query, orderBy, limit, startAfter, getDocs } = await import("firebase/firestore");
+  const base = collection(db, "users");
+  const constraints = [
+    orderBy("__name__"),
+    ...(cursorUid ? [startAfter(cursorUid)] : []),
+    limit(effective + 1),
+  ];
+  const snap = await getDocs(query(base, ...constraints));
+  const pageDocs = snap.docs.slice(0, effective);
+  const rows = mapDirectoryRows(pageDocs);
+  const hasMore = snap.docs.length > effective;
+  const lastLoaded = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1].id : null;
+  return { rows, nextCursor: hasMore && lastLoaded !== null ? lastLoaded : null };
+}
+
+/**
+ * Superadmin: genuinely most-recently-registered accounts (createdAt
+ * descending) for the Screen 08 overview card — ordered across the whole
+ * directory, never "the first page in uid order". A single-field sort
+ * needs no composite index, and the existing superadmin `list` rule
+ * covers it unchanged. Documents lacking `createdAt` (none are produced
+ * by the app or the documented backfill, both of which timestamp the
+ * record at creation) simply do not appear in a field-ordered query.
+ */
+export async function listRecentAccounts(limitCount: number = RECENT_USERS_COUNT): Promise<AdminAccountRow[]> {
+  const db = await getFirebaseDb();
+  const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
+  const snap = await getDocs(query(
+    collection(db, "users"),
+    orderBy("createdAt", "desc"),
+    limit(Math.max(1, Math.min(limitCount, MAX_PAGE))),
+  ));
+  return mapDirectoryRows(snap.docs);
 }
 
 /** Superadmin: suspend or restore cloud-feature access (Firestore status only). */

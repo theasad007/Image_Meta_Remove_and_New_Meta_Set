@@ -21,6 +21,25 @@ export function downloadNamedBlob(data: Uint8Array | string, fileName: string, m
   }
 }
 
+/**
+ * Blob download (individual cleaned/rewritten outputs): click-scoped object
+ * URL, always revoked shortly after the click. The original file in the
+ * queue is never touched.
+ */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}
+
 export function reportFileName(kind: "csv" | "tags" | "pdf", when: Date = new Date()): string {
   const stamp = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")}`;
   switch (kind) {

@@ -46,6 +46,15 @@ function fail(message) {
   process.exit(1);
 }
 
+function formatError(error) {
+  if (!(error instanceof Error)) return String(error);
+  const code = typeof error.code === "string" ? ` [${error.code}]` : "";
+  const stack = process.env.DEBUG_BOOTSTRAP === "1" && error.stack
+    ? `\n${error.stack}`
+    : "";
+  return `${error.message}${code}${stack}`;
+}
+
 const project = args.project ?? process.env.FIREBASE_PROJECT_ID ?? "";
 const uid = args.uid ?? "";
 const confirm = args.confirm ?? "";
@@ -61,17 +70,35 @@ if (confirm !== uid) {
 }
 
 let admin;
+let getAuth;
 try {
-  admin = (await import("firebase-admin")).default ?? (await import("firebase-admin"));
-} catch {
+  const adminModule = await import("firebase-admin");
+  admin = adminModule.default ?? adminModule;
+  // firebase-admin v14 exposes service APIs from submodules rather than the
+  // legacy root namespace. Keep the fallback for older local tooling.
+  if (typeof admin.auth !== "function") {
+    ({ getAuth } = await import("firebase-admin/auth"));
+  }
+} catch (error) {
+  fail(`firebase-admin could not be loaded: ${formatError(error)}. Run \`npm install -g firebase-admin\` first (local tooling only — do not add it to the app).`);
+}
+
+if (!admin) {
   fail("firebase-admin is not installed. Run `npm install -g firebase-admin` first (local tooling only — do not add it to the app).");
 }
 
 try {
-  if (admin.apps.length === 0) {
-    admin.initializeApp({ credential: admin.credential.applicationDefault(), projectId: project });
+  const apps = typeof admin.getApps === "function" ? admin.getApps() : (admin.apps ?? []);
+  let app;
+  if (apps.length === 0) {
+    const credential = typeof admin.applicationDefault === "function"
+      ? admin.applicationDefault()
+      : admin.credential.applicationDefault();
+    app = admin.initializeApp({ credential, projectId: project });
+  } else {
+    app = typeof admin.getApp === "function" ? admin.getApp() : apps[0];
   }
-  const auth = admin.auth();
+  const auth = typeof admin.auth === "function" ? admin.auth() : getAuth(app);
   const user = await auth.getUser(uid);
   console.log(`Verified user: uid=${user.uid} email=${user.email ?? "(no email)"} providers=${(user.providerData ?? []).map((p) => p.providerId).join(",") || "none"}`);
   if (!user.emailVerified && (user.providerData ?? []).length === 0) {
@@ -93,5 +120,5 @@ try {
   console.log(`Confirmed claims now: ${JSON.stringify(check.customClaims ?? {})}`);
   console.log("Next: sign OUT and back IN in the app (or Refresh login status) so a fresh ID token carries the claim.");
 } catch (error) {
-  fail(error instanceof Error ? error.message : String(error));
+  fail(formatError(error));
 }

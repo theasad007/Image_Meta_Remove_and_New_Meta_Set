@@ -50,6 +50,7 @@ const SNIFF_LABELS: Record<string, { mediaKind: MediaKind; label: string; suppor
   "heif-generic": { mediaKind: "image", label: "HEIF", supported: true },
   "heif-sequence": { mediaKind: "image", label: "HEIF sequence", supported: true },
   "mp4-video": { mediaKind: "video", label: "Video", supported: true },
+  "mp3-audio": { mediaKind: "audio", label: "MP3", supported: true },
   empty: { mediaKind: "unknown", label: "Empty", supported: false },
   unknown: { mediaKind: "unknown", label: "Unknown", supported: false },
   unreadable: { mediaKind: "unknown", label: "Unreadable", supported: false },

@@ -87,7 +87,18 @@ export interface ReportFileRecord {
   gpsBefore: string;
   gpsAfter: string;
   aiIndicatorsBefore: string;
+  /** SOL-010: separate before/after C2PA states — never one combined
+   *  value duplicated into both columns. */
+  c2paBefore: string;
+  c2paAfter: string;
+  /** Combined human summary (PDF line); CSV uses the separate columns. */
   c2paState: string;
+  /** SOL-010: MP3 facts — ID3 versions before/after, the audio operation,
+   *  and whether the encoded MPEG payload was proven byte-identical. */
+  audioId3Before: string;
+  audioId3After: string;
+  audioOperation: string;
+  mpegPayloadPreserved: "yes" | "no" | "not verified" | "not audio";
   detectedTagCount: number;
   verifiedRemovedCount: number;
   verifiedRewrittenCount: number;

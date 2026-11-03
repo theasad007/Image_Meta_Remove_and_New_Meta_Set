@@ -90,6 +90,42 @@ async function realBackend(): Promise<AuthBackend> {
   };
 }
 
+/**
+ * Emulator test backend (NEXT_PUBLIC_FIREBASE_EMULATOR=1). The Auth
+ * emulator accepts a strict-JSON fake custom token keyed by its `uid`
+ * claim ("Auth Emulator only accepts strict JSON or JWTs as fake custom
+ * tokens"), so the same "Continue with Google" button runs headless with
+ * a neutral demo identity. Never used in production builds (flag unset).
+ */
+async function emulatorBackend(): Promise<AuthBackend> {
+  const { signInWithCustomToken, updateEmail, updateProfile } = await import("firebase/auth");
+  return {
+    signInWithPopup: async (auth) => {
+      const credential = await signInWithCustomToken(
+        auth,
+        JSON.stringify({ uid: "demo-profile-user", claims: {} }),
+      );
+      // Give the emulator-only identity a real email claim before the app's
+      // idempotent directory bootstrap runs. Production Google users already
+      // receive this from Firebase Auth; without it, the Rules-bound
+      // self-registration payload is correctly rejected as an empty email.
+      try {
+        await updateEmail(credential.user, "demo@example.com");
+      } catch {
+        // Existing emulator users may already carry the same address.
+      }
+      // The demo identity presents like a Google account in the profile UI.
+      try {
+        await updateProfile(credential.user, { displayName: "Demo Profile User" });
+      } catch {
+        // A missing display name falls back to the honest raw identity.
+      }
+      return { user: credential.user as User };
+    },
+    googleProvider: () => ({}),
+  };
+}
+
 export async function signInWithGoogle(
   backendOverride?: AuthBackend,
   authOverride?: Auth,
@@ -108,7 +144,23 @@ export async function signInWithGoogle(
       };
     }
   }
-  const backend = backendOverride ?? (await realBackend());
+  let backend: AuthBackend;
+  if (backendOverride) {
+    backend = backendOverride;
+  } else {
+    try {
+      const { isEmulatorRequested } = await import("./config");
+      backend = isEmulatorRequested()
+        ? await emulatorBackend()
+        : await realBackend();
+    } catch {
+      return {
+        status: "error",
+        code: "auth/configuration-not-found",
+        message: "Google profile features are not configured.",
+      };
+    }
+  }
   try {
     const credential = await backend.signInWithPopup(auth, backend.googleProvider());
     return { status: "signed-in", user: toSignedInUser(credential.user) };

@@ -1,9 +1,12 @@
 import { encodeChunk, parseWebpChunks } from "../clean/webp";
+import type { GpsEngineDirective } from "./gps";
+import { GPS_XMP_REMOVAL_QUERIES, toTiffDirective } from "./gps";
 import type { FieldWritePlan } from "./writes";
 import {
   buildTiff,
+  buildTiffWithGps,
   buildXmpPacket,
-  mergeXmpPacket,
+  editXmpPacket,
   parseTiff,
   type TiffWriteValue,
   type XmlCodec,
@@ -11,10 +14,13 @@ import {
 } from "./codecs";
 
 /**
- * WebP profile-field writer (Phase 6): `EXIF` / `XMP ` chunks + VP8X flags.
- * Merge semantics like PNG. VP8X presence bits are SET for added chunks
- * (never cleared here); a missing VP8X is created from the bitstream canvas
- * size. Animated WebP stays refused upstream (dispatcher never routes it).
+ * WebP profile-field writer (Phase 6) with Screen 09 GPS support:
+ * `EXIF` / `XMP ` chunks + VP8X flags. A GPS directive rebuilds the EXIF
+ * chunk through the GPS-aware codec (write: GPS IFD; remove: carved out)
+ * and strips the standard XMP coordinate mirrors. Merge semantics like
+ * PNG. VP8X presence bits are SET for added chunks (never cleared here);
+ * a missing VP8X is created from the bitstream canvas size. Animated WebP
+ * stays refused upstream (dispatcher never routes it).
  */
 
 export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
@@ -22,7 +28,7 @@ export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
 export interface WebpRewriteOutput {
   data: Uint8Array;
   warnings: string[];
-  detail: { exif: RewriteChannel; xmp: RewriteChannel };
+  detail: { exif: RewriteChannel; xmp: RewriteChannel; gps: RewriteChannel };
   skipped: Array<{ field: string; channel: string; reason: string }>;
 }
 
@@ -78,10 +84,13 @@ export function writeWebpFields(
   input: Uint8Array,
   plans: FieldWritePlan[],
   xml: XmlCodec,
+  gps?: GpsEngineDirective,
 ): WebpRewriteOutput {
   const warnings: string[] = [];
   const skipped: WebpRewriteOutput["skipped"] = [];
   const { chunks, trailing } = parseWebpChunks(input);
+  const gpsTiff = gps ? toTiffDirective(gps) : null;
+  const xmpRemovals = gps?.op === "remove" ? GPS_XMP_REMOVAL_QUERIES : [];
 
   const exifWrites: TiffWriteValue[] = [];
   const xmpProps: XmpProperty[] = [];
@@ -100,51 +109,72 @@ export function writeWebpFields(
   const detail: WebpRewriteOutput["detail"] = {
     exif: exifWrites.length === 0 ? "absent" : "unsupported",
     xmp: xmpProps.length === 0 ? "absent" : "unsupported",
+    gps: gps ? "unsupported" : "absent",
   };
 
   let exifData: Uint8Array | null = null;
-  if (exifWrites.length > 0) {
+  if (exifWrites.length > 0 || gps) {
     const existing = chunks.filter((c) => c.id === "EXIF");
     if (existing.length > 1) {
       for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Multiple EXIF chunks present; refusing ambiguous merge." });
+      if (gps) detail.gps = "unsupported";
     } else if (existing.length === 1 && existing[0]) {
       const parsed = parseTiff(existing[0].data);
       if (!parsed) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing EXIF chunk is malformed; refusing to rewrite it." });
+        if (gps) detail.gps = "unsupported";
       } else {
-        const merged = buildTiff(parsed, exifWrites, parsed.little);
+        const merged = gpsTiff
+          ? buildTiffWithGps(parsed, exifWrites, gpsTiff, parsed.little)
+          : buildTiff(parsed, exifWrites, parsed.little);
         if (!merged) {
           for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF merge failed value encoding." });
+          if (gps) detail.gps = "unsupported";
         } else {
           exifData = merged;
-          detail.exif = "merged";
+          if (exifWrites.length > 0) detail.exif = "merged";
+          if (gps) detail.gps = "merged";
         }
       }
+    } else if (gpsTiff?.op === "remove") {
+      // No EXIF chunk: no WebP EXIF GPS exists to remove; nothing is created.
+      detail.gps = "absent";
     } else {
-      const built = buildTiff(null, exifWrites, true);
+      const built = gpsTiff
+        ? buildTiffWithGps(null, exifWrites, gpsTiff, true)
+        : buildTiff(null, exifWrites, true);
       if (!built) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF value encoding failed." });
+        if (gps) detail.gps = "unsupported";
       } else {
         exifData = built;
-        detail.exif = "created";
+        if (exifWrites.length > 0) detail.exif = "created";
+        if (gps) detail.gps = "created";
       }
     }
   }
 
   let xmpData: Uint8Array | null = null;
-  if (xmpProps.length > 0) {
+  if (xmpProps.length > 0 || xmpRemovals.length > 0) {
     const existing = chunks.filter((c) => c.id === "XMP ");
     if (existing.length > 1) {
       for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Multiple XMP chunks present; refusing ambiguous merge." });
+      if (xmpRemovals.length > 0) detail.gps = "unsupported";
     } else if (existing.length === 1 && existing[0]) {
       const text = new TextDecoder("utf-8", { fatal: false }).decode(existing[0].data);
-      const merged = mergeXmpPacket(text, xmpProps, xml);
+      const merged = editXmpPacket(text, xmpProps, xmpRemovals, xml);
       if (merged === null) {
         for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Existing XMP is not parseable XML; refusing to rewrite it." });
+        if (xmpRemovals.length > 0) detail.gps = "unsupported";
+      } else if (merged === "" ) {
+        // unreachable via editXmpPacket, guarded for exhaustiveness
       } else {
         xmpData = new TextEncoder().encode(merged);
-        detail.xmp = "merged";
+        if (xmpProps.length > 0) detail.xmp = "merged";
       }
+    } else if (xmpRemovals.length > 0 && xmpProps.length === 0) {
+      // No XMP chunk present: no XMP coordinates exist to remove. Nothing is
+      // created; the removal claim is settled by output verification.
     } else {
       xmpData = buildXmpPacket(xmpProps);
       detail.xmp = "created";
@@ -220,7 +250,7 @@ export function writeWebpFields(
   const payloadLength = body.reduce((sum, part) => sum + part.length, 0);
   const riffSize = 4 + payloadLength;
   if (riffSize > 0xffffffff - 8) {
-    return { data: input.slice(), warnings: ["Rebuilt RIFF size overflows 32 bits; returning input unchanged."], detail: { exif: "unsupported", xmp: "unsupported" }, skipped };
+    return { data: input.slice(), warnings: ["Rebuilt RIFF size overflows 32 bits; returning input unchanged."], detail: { exif: "unsupported", xmp: "unsupported", gps: "unsupported" }, skipped };
   }
   const out = new Uint8Array(12 + payloadLength + trailing.length);
   out[0] = 0x52; out[1] = 0x49; out[2] = 0x46; out[3] = 0x46;

@@ -5,11 +5,13 @@ import { parseWebpChunks } from "../clean/webp";
 import { parseIinf, parseIloc, walkTopLevel } from "../clean/isobmff";
 import type { FieldWritePlan } from "./writes";
 import {
+  extractGpsIfd,
   parseApp13,
   parseTiff,
   readXmpProperties,
   type XmlCodec,
 } from "./codecs";
+import { GPS_XMP_RETAINED_QUERIES, gpsAltitudeFromRationals, gpsRationalsToDecimal } from "./gps";
 
 /**
  * Targeted field readers for rewrite verification (Phase 6).
@@ -149,11 +151,6 @@ function isobmffItems(input: Uint8Array): { exif: Uint8Array | null; xmp: string
     const { boxes } = walkTopLevel(input);
     const meta = boxes.find((box) => box.type === "meta");
     if (!meta) return result;
-    // meta payload starts with version/flags (FullBox) in real files.
-    const payload = meta.payload.length > 4 ? meta.payload.slice(4) : meta.payload;
-    void payload;
-    // Re-walk children relative to the meta box payload via a synthetic view:
-    // childBoxes expects the FullBox-skipped payload; replicate minimal parse.
     const children = metaChildren(meta.payload);
     const ilocRaw = children.find((c) => c.type === "iloc");
     const iinfRaw = children.find((c) => c.type === "iinf");
@@ -179,13 +176,34 @@ function isobmffItems(input: Uint8Array): { exif: Uint8Array | null; xmp: string
         joined.set(part, cursor);
         cursor += part.length;
       }
-      if (isExif && joined.length > 6) result.exif = joined.slice(6);
-      else if (isXmp) result.xmp = new TextDecoder("utf-8", { fatal: false }).decode(joined);
+      if (isExif) {
+        // Real HEIF-family files carry an optional 4-byte TIFF-offset field
+        // before "Exif\0\0" (offset = header size); locate the header so
+        // both headerless (offset 0) and offset-prefixed layouts read.
+        const headerAt = isobmffExifHeaderAt(joined);
+        if (headerAt >= 0) result.exif = joined.slice(headerAt + 6);
+      } else if (isXmp) {
+        result.xmp = new TextDecoder("utf-8", { fatal: false }).decode(joined);
+      }
     }
   } catch {
     // Unreadable items verify as absent downstream.
   }
   return result;
+}
+
+/** Same tolerant "Exif\0\0" location as the writer (shared shapes). */
+function isobmffExifHeaderAt(payload: Uint8Array): number {
+  for (let at = 0; at <= Math.min(8, Math.max(0, payload.length - 6)); at += 1) {
+    if (
+      payload[at] === 0x45 && payload[at + 1] === 0x78 &&
+      payload[at + 2] === 0x69 && payload[at + 3] === 0x66 &&
+      payload[at + 4] === 0x00 && payload[at + 5] === 0x00
+    ) {
+      return at;
+    }
+  }
+  return -1;
 }
 
 function metaChildren(metaPayload: Uint8Array): Array<{ type: string; data: Uint8Array }> {
@@ -282,4 +300,134 @@ export function observeFieldValues(
     out.set(plan.field, { singles: fieldSingles, multis: fieldMultis });
   }
   return out;
+}
+
+// -------------------------------------------------------------- GPS (Screen 09)
+
+export interface ObservedGps {
+  latitude: number | null;
+  longitude: number | null;
+  altitude: number | null;
+  latRef: "N" | "S" | null;
+  lonRef: "E" | "W" | null;
+  /** GPS tags exist but could not be decoded (fail-closed evidence). */
+  unreadable: boolean;
+  /** Coordinate-bearing XMP paths still present, e.g. "XMP exif:GPSLatitude". */
+  xmpCoordinates: string[];
+}
+
+function rationalTriplesFor(value: Uint8Array, little: boolean): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  if (value.length % 8 !== 0) return out;
+  const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
+  for (let i = 0; i < value.length; i += 8) {
+    out.push([view.getUint32(i, little), view.getUint32(i + 4, little)]);
+  }
+  return out;
+}
+
+function asciiRef(value: Uint8Array): string | null {
+  const code = value[0];
+  if (code === undefined) return null;
+  return String.fromCharCode(code);
+}
+
+function byteValue(value: Uint8Array): number | null {
+  const code = value[0];
+  return code === undefined ? null : code;
+}
+
+/**
+ * Read GPS coordinates back from finished bytes (Screen 09 verification):
+ * EXIF GPS IFD (primary) plus a scan for coordinate-bearing XMP properties
+ * whose retention must be disclosed. Nothing is trusted from the writer —
+ * this is the same standard-location discipline as `observeFieldValues`.
+ */
+export function observeGps(input: Uint8Array, kind: SniffedKind, xml: XmlCodec): ObservedGps {
+  let exifTiff: Uint8Array | null = null;
+  let xmpText: string | null = null;
+  if (kind === "jpeg") {
+    exifTiff = jpegExifTiff(input);
+    xmpText = jpegXmpText(input);
+  } else if (kind === "png") {
+    exifTiff = pngExifTiff(input);
+    xmpText = pngXmpText(input);
+  } else if (kind === "webp") {
+    exifTiff = webpExifTiff(input);
+    xmpText = webpXmpText(input);
+  } else if (kind === "avif" || kind === "heic" || kind === "heif-generic") {
+    const items = isobmffItems(input);
+    exifTiff = items.exif;
+    xmpText = items.xmp;
+  }
+
+  const empty: ObservedGps = { latitude: null, longitude: null, altitude: null, latRef: null, lonRef: null, unreadable: false, xmpCoordinates: [] };
+
+  if (exifTiff) {
+    const parsed = parseTiff(exifTiff);
+    if (parsed) {
+      const gpsIfd = extractGpsIfd(parsed);
+      if (gpsIfd) {
+        const decodeRationals = (tag: number) => {
+          const entry = gpsIfd.entries.find((e) => e.tag === tag && e.type === 5);
+          return entry ? rationalTriplesFor(entry.value, parsed.little) : null;
+        };
+        const latRationals = decodeRationals(2);
+        const lonRationals = decodeRationals(4);
+        const latRefEntry = gpsIfd.entries.find((e) => e.tag === 1);
+        const lonRefEntry = gpsIfd.entries.find((e) => e.tag === 3);
+        // Spec refs are ASCII ("S\0", type 2); BYTE (type 1) is the lenient
+        // variant some writers emit — both decode to the same letter here.
+        const latRef = latRefEntry && (latRefEntry.type === 1 || latRefEntry.type === 2) ? (asciiRef(latRefEntry.value) as ObservedGps["latRef"] ?? null) : null;
+        const lonRef = lonRefEntry && (lonRefEntry.type === 1 || lonRefEntry.type === 2) ? (asciiRef(lonRefEntry.value) as ObservedGps["lonRef"] ?? null) : null;
+        let readable = true;
+        let latitude: number | null = null;
+        let longitude: number | null = null;
+        let altitude: number | null = null;
+        if (latRationals && latRationals.length === 3) {
+          const value = gpsRationalsToDecimal(latRationals, latRef === "S" ? "S" : "N");
+          if (value !== null) latitude = value;
+          else readable = false;
+        } else {
+          readable = false; // a GPS IFD without a decodable latitude is corrupt
+        }
+        if (lonRationals && lonRationals.length === 3) {
+          const value = gpsRationalsToDecimal(lonRationals, lonRef === "W" ? "W" : "E");
+          if (value !== null) longitude = value;
+          else readable = false;
+        } else {
+          readable = false;
+        }
+        const altEntry = gpsIfd.entries.find((e) => e.tag === 6 && e.type === 5);
+        const altRefEntry = gpsIfd.entries.find((e) => e.tag === 5 && e.type === 1);
+        if (altEntry) {
+          const pair = rationalTriplesFor(altEntry.value, parsed.little)[0] ?? null;
+          const ref = altRefEntry ? byteValue(altRefEntry.value) : null;
+          if (pair && (ref === 0 || ref === 1)) {
+            altitude = gpsAltitudeFromRationals(pair, ref === 1 ? 1 : 0);
+          }
+        }
+        return { latitude, longitude, altitude, latRef, lonRef, unreadable: !readable, xmpCoordinates: xmpText ? scanXmpCoordinates(xmpText, xml) : [] };
+      }
+      // EXIF exists but carries no GPS IFD: honestly absent (never "unreadable").
+      return { ...empty, xmpCoordinates: xmpText ? scanXmpCoordinates(xmpText, xml) : [] };
+    }
+    return { ...empty, unreadable: true, xmpCoordinates: xmpText ? scanXmpCoordinates(xmpText, xml) : [] };
+  }
+  return { ...empty, xmpCoordinates: xmpText ? scanXmpCoordinates(xmpText, xml) : [] };
+}
+
+function scanXmpCoordinates(packet: string, xml: XmlCodec): string[] {
+  const values = readXmpProperties(
+    packet,
+    GPS_XMP_RETAINED_QUERIES.map((query) => ({ ns: query.ns, prop: query.prop })),
+    xml,
+  );
+  const hits: string[] = [];
+  for (const [key, list] of values) {
+    if (list.length === 0) continue;
+    const prop = key.split("#")[1] ?? key;
+    hits.push(`XMP ${prop}`);
+  }
+  return hits;
 }

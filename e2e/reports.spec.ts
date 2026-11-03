@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import { unzipSync } from "fflate";
 import fs from "node:fs";
 import path from "node:path";
-import { fixture } from "./helpers";
+import { fixture, openReportOptions } from "./helpers";
 
 /**
  * Phase 5 reporting journeys in a real browser: standalone CSV/PDF parse,
@@ -121,6 +121,7 @@ test("opt-in exposes original values locally", async ({ page }) => {
   await uploadNames(page, ["jpeg-exif.jpg"]);
   await page.locator('[data-testid="batch-clean-all"]').click();
   await expect(page.locator('[data-testid="batch-progress"]')).toContainText(/1 of 1 files processed/, { timeout: 120000 });
+  await openReportOptions(page);
   await page.locator('[data-testid="report-include-values"]').check();
   const csvPath = await downloadTo(page, "download-csv", "optin.csv");
   expect(fs.readFileSync(csvPath, "utf-8")).toContain("12.345678");
@@ -131,6 +132,7 @@ test("detailed tag ledger downloads with group coverage rows", async ({ page }) 
   await uploadNames(page, ["jpeg-xmp-iptc.jpg"]);
   await page.locator('[data-testid="batch-clean-all"]').click();
   await expect(page.locator('[data-testid="batch-progress"]')).toContainText(/1 of 1 files processed/, { timeout: 120000 });
+  await openReportOptions(page);
   await page.locator('[data-testid="report-detail"]').selectOption("detailed");
   const tagsPath = await downloadTo(page, "download-tags", "tags.csv");
   const rows = parseCsvRows(fs.readFileSync(tagsPath, "utf-8"));
@@ -160,6 +162,7 @@ test("ZIP Both embeds reports/ and matches standalone structure", async ({ page 
   await page.locator('[data-testid="batch-clean-all"]').click();
   await expect(page.locator('[data-testid="batch-progress"]')).toContainText(/6 of 6 files processed/, { timeout: 120000 });
   await page.locator('[data-testid="zip-include-partials"]').check();
+  await openReportOptions(page);
   await page.getByRole("radio", { name: /CSV \+ PDF/ }).click();
   await page.locator('[data-testid="report-detail"]').selectOption("detailed");
   // Standalone first (structure reference; timestamps may differ).

@@ -31,6 +31,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.get('superadmin', false) == true;
     }
 
+    // Administrative access is claim + current directory state.  A signed
+    // custom claim is deliberately insufficient once the account is
+    // suspended, and a missing directory fails closed for admin operations.
+    function isActiveSuperadmin() {
+      return isSuperadmin()
+        && accountExists(request.auth.uid)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
     function accountExists(uid) {
       return exists(/databases/$(database)/documents/users/$(uid));
     }
@@ -69,11 +78,15 @@ service cloud.firestore {
       ])
       && data.uid == uid
       && data.email is string && data.email.size() <= 200
+      && data.email == request.auth.token.get('email', '')
+      && data.email.size() > 0
       && data.displayName is string && data.displayName.size() <= 120
       && data.photoURL is string && data.photoURL.size() <= 300
       && data.status == 'active'
       && data.createdAt is timestamp
-      && data.updatedAt is timestamp;
+      && data.updatedAt is timestamp
+      && data.createdAt == request.time
+      && data.updatedAt == request.time;
     }
 
     function validDirectoryOwnerUpdate(uid, data, existing) {
@@ -82,11 +95,17 @@ service cloud.firestore {
       ])
       && data.uid == uid
       && data.email is string && data.email.size() <= 200
+      && data.email == request.auth.token.get('email', '')
+      && data.email.size() > 0
       && data.displayName is string && data.displayName.size() <= 120
       && data.photoURL is string && data.photoURL.size() <= 300
       && data.status == 'active'
+      && data.email == existing.email
+      && data.displayName == existing.displayName
+      && data.photoURL == existing.photoURL
       && data.createdAt == existing.createdAt
-      && data.updatedAt is timestamp;
+      && data.updatedAt is timestamp
+      && data.updatedAt == request.time;
     }
 
     function validDirectoryStatusUpdate(data, existing) {
@@ -100,6 +119,7 @@ service cloud.firestore {
       && data.createdAt == existing.createdAt
       && (data.status == 'active' || data.status == 'suspended')
       && data.updatedAt is timestamp
+      && data.updatedAt == request.time
       && (data.get('statusReason', '') is string && data.get('statusReason', '').size() <= 280);
     }
 
@@ -117,31 +137,241 @@ service cloud.firestore {
       && (data.get('cleanDaily', null) == null
         || (data.cleanDaily is int && data.cleanDaily >= 0 && data.cleanDaily <= 1000000))
       && data.updatedAt is timestamp
-      && data.updatedBy is string && data.updatedBy.size() <= 128;
+      && data.updatedAt == request.time
+      && data.updatedBy is string && data.updatedBy.size() <= 128
+      && data.updatedBy == request.auth.uid;
+    }
+
+    // Feature access policy (Phase 02): the ONLY admin-adjustable access
+    // configuration. Free-by-contract single-file operations can never be
+    // switched to premium, unknown keys/values are rejected, and the
+    // document contains nothing but sanitized policy keys (public read is
+    // therefore safe — no user data lives here).
+    function validFeaturePolicy(data) {
+      return data.keys().hasOnly(['schemaVersion', 'updatedAt', 'updatedBy', 'features'])
+      && data.schemaVersion == 1
+      && data.updatedAt is timestamp
+      && data.updatedAt == request.time
+      && data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() <= 128
+      && data.updatedBy == request.auth.uid
+      && data.features is map
+      && data.features.keys().hasOnly([
+        'single_metadata_clean', 'single_ai_metadata_clean',
+        'bulk_metadata_clean', 'bulk_ai_metadata_clean',
+        'single_custom_rewrite',
+        'batch_metadata_rewrite', 'batch_gps_write',
+        'multiple_named_projects', 'saved_project_apply'
+      ])
+      && data.features.get('single_metadata_clean', '') == 'free'
+      && data.features.get('single_ai_metadata_clean', '') == 'free'
+      && data.features.get('single_custom_rewrite', '') == 'free'
+      && (data.features.get('bulk_metadata_clean', '') == 'free' || data.features.get('bulk_metadata_clean', '') == 'premium')
+      && (data.features.get('bulk_ai_metadata_clean', '') == 'free' || data.features.get('bulk_ai_metadata_clean', '') == 'premium')
+      && (data.features.get('batch_metadata_rewrite', '') == 'free' || data.features.get('batch_metadata_rewrite', '') == 'premium')
+      && (data.features.get('batch_gps_write', '') == 'free' || data.features.get('batch_gps_write', '') == 'premium')
+      && (data.features.get('multiple_named_projects', '') == 'free' || data.features.get('multiple_named_projects', '') == 'premium')
+      && (data.features.get('saved_project_apply', '') == 'free' || data.features.get('saved_project_apply', '') == 'premium');
+    }
+
+    // Manual Premium entitlement (Phase 03): admin-owned record under the
+    // user's own path. Clients can read their own effective tier; ONLY the
+    // superadmin Auth custom claim can write one. No field of it is ever
+    // derivable from client state.
+    function validEntitlement(data) {
+      return data.keys().hasOnly(['tier', 'status', 'expiresAt', 'assignedBy', 'reason', 'updatedAt'])
+      && (data.tier == 'free' || data.tier == 'premium')
+      && (data.status == 'active' || data.status == 'expired')
+      && (data.expiresAt == null || data.expiresAt is timestamp)
+      && data.assignedBy is string && data.assignedBy.size() > 0 && data.assignedBy.size() <= 128
+      && (data.get('reason', null) == null
+        || (data.reason is string && data.reason.size() <= 280))
+      && data.updatedAt is timestamp
+      && data.updatedAt == request.time
+      && data.assignedBy == request.auth.uid;
+    }
+
+    // Effective Premium check used by privileged cloud writes (projects):
+    // server-authored entitlement + active + unexpired by SERVER time.
+    // Missing/expired/malformed entitlements fail closed for premium cloud
+    // actions — they never affect free functionality.
+    function hasPremiumEntitlement(uid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(uid)/entitlement/main)
+        && get(/databases/$(database)/documents/users/$(uid)/entitlement/main).data.tier == 'premium'
+        && get(/databases/$(database)/documents/users/$(uid)/entitlement/main).data.status == 'active'
+        && (get(/databases/$(database)/documents/users/$(uid)/entitlement/main).data.expiresAt == null
+          || get(/databases/$(database)/documents/users/$(uid)/entitlement/main).data.expiresAt > request.time);
+    }
+
+    // A superadmin may open a premium-default feature to everyone via the
+    // feature policy; absence of the doc means the shipped default holds
+    // (premium stays premium — fail closed for premium, never for free).
+    function featurePolicyAllows(key) {
+      return exists(/databases/$(database)/documents/adminSettings/featurePolicy)
+        && get(/databases/$(database)/documents/adminSettings/featurePolicy).data.features.get(key, '') == 'free';
+    }
+
+    // SOL-004: keywords are stored as ONE packed string (items joined with
+    // the \x01 control separator), mirroring the approved profile schema.
+    // A single RE2 regex validates the FULL per-item contract inside the
+    // rules evaluation budget: 0–30 items, each 1–60 printable
+    // (non-control) characters. The previous 30-OR-clause list validator
+    // exceeded Firestore's 1000-expression limit in the emulator.
+    function validKeywords(packed) {
+      return packed is string
+        && packed.size() <= 1829
+        && (packed.size() == 0
+          || packed.matches('^([^\x00-\x1f]{1,60})(\x01[^\x00-\x1f]{1,60}){0,29}$'));
+    }
+
+    // SOL-006: websiteUrl must be empty or an absolute http(s) URL with a
+    // dotted hostname — no other schemes, no ports/userinfo, matching the
+    // TypeScript validator in project-schema.ts exactly.
+    function validWebsiteUrl(value) {
+      return value.size() == 0
+        || value.matches('^https://[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)+([/?#].*)?$')
+        || value.matches('^http://[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)+([/?#].*)?$');
+    }
+
+    // Named projects (Phase 04): metadata PRESETS only. The schema has no
+    // fields for media, thumbnails, EXIF, GPS-extracted-from-files, C2PA,
+    // reports, tokens or payment info — the allowlist below is the
+    // guarantee. Coordinates are user-typed decimals, never auto-collected.
+    function validProject(data) {
+      return data.keys().hasOnly([
+        'projectTitle', 'titleKey', 'clientName',
+        'companyPublisher', 'creatorAuthor', 'copyrightNotice', 'rightsOwner',
+        'websiteUrl', 'contactInformation', 'imageTitle', 'imageDescription',
+        'keywords', 'locationName',
+        'latitude', 'longitude', 'altitudeMeters',
+        'schemaVersion', 'createdAt', 'updatedAt'
+      ])
+      && data.projectTitle is string && data.projectTitle.size() > 0 && data.projectTitle.size() <= 120
+      && data.titleKey is string
+      && data.titleKey.matches('^[0-9a-f]{2,240}$')
+      && data.titleKey == data.projectTitle.trim().replace('\\s+', ' ').lower().toUtf8().toHexString().lower()
+      && (data.get('clientName', '') is string && data.get('clientName', '').size() <= 120)
+      && data.companyPublisher is string && data.companyPublisher.size() <= 120
+      && data.creatorAuthor is string && data.creatorAuthor.size() <= 120
+      && data.copyrightNotice is string && data.copyrightNotice.size() <= 300
+      && data.rightsOwner is string && data.rightsOwner.size() <= 120
+      && data.websiteUrl is string && data.websiteUrl.size() <= 200 && validWebsiteUrl(data.websiteUrl)
+      && data.contactInformation is string && data.contactInformation.size() <= 200
+      && data.imageTitle is string && data.imageTitle.size() <= 200
+      && data.imageDescription is string && data.imageDescription.size() <= 2000
+      && data.locationName is string && data.locationName.size() <= 200
+      && validKeywords(data.keywords)
+      && data.schemaVersion == 1
+      // SOL-015: coordinates are a PAIR — both present or both absent —
+      // and altitude without the pair is rejected. (0,0) stays valid.
+      && (data.get('latitude', null) == null) == (data.get('longitude', null) == null)
+      && (data.get('altitudeMeters', null) == null || data.get('latitude', null) != null)
+      && (data.get('latitude', null) == null
+        || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90))
+      && (data.get('longitude', null) == null
+        || (data.longitude is number && data.longitude >= -180 && data.longitude <= 180))
+      && (data.get('altitudeMeters', null) == null
+        || (data.altitudeMeters is number && data.altitudeMeters >= -20000 && data.altitudeMeters <= 20000))
+      && (data.get('createdAt', null) == null || data.createdAt is timestamp)
+      && data.updatedAt is timestamp;
     }
 
     match /users/{uid}/profile/main {
       allow read: if isOwner(uid) && accountActive(uid);
-      allow create, update: if isOwner(uid) && accountActive(uid) && validProfile(request.resource.data);
+      allow create, update: if isOwner(uid) && accountActive(uid)
+        && validProfile(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(uid);
     }
 
     match /users/{uid} {
-      allow get: if isOwner(uid) || isSuperadmin();
-      allow list: if isSuperadmin();
+      allow get: if isOwner(uid) || isActiveSuperadmin();
+      allow list: if isActiveSuperadmin();
       allow create: if isOwner(uid) && validDirectoryCreate(uid, request.resource.data);
       // Owners may refresh identity fields only while currently active —
       // suspended accounts cannot write their own record back to active.
       allow update: if isOwner(uid)
         && resource.data.status == 'active'
         && validDirectoryOwnerUpdate(uid, request.resource.data, resource.data);
-      allow update: if isSuperadmin()
+      allow update: if isActiveSuperadmin()
+        && request.auth.uid != uid
         && validDirectoryStatusUpdate(request.resource.data, resource.data);
     }
 
     match /adminSettings/usagePolicy {
-      allow read: if isSuperadmin();
-      allow create, update: if isSuperadmin() && validUsagePolicy(request.resource.data);
+      allow read: if isActiveSuperadmin();
+      allow create, update: if isActiveSuperadmin() && validUsagePolicy(request.resource.data);
+    }
+
+    // Feature policy: publicly readable (sanitized policy keys only, no
+    // user data), superadmin-writable with strict validation.
+    match /adminSettings/featurePolicy {
+      allow get, list: if true;
+      allow create, update: if isActiveSuperadmin() && validFeaturePolicy(request.resource.data);
+    }
+
+    // Entitlements: owner reads their own effective tier; superadmin writes.
+    // The client-side resolver mirrors this read-only.
+    match /users/{uid}/entitlement/main {
+      allow get: if (isOwner(uid) && accountActive(uid)) || isActiveSuperadmin();
+      allow list: if isActiveSuperadmin();
+      allow create, update: if isActiveSuperadmin() && validEntitlement(request.resource.data);
+      allow delete: if isActiveSuperadmin();
+    }
+
+    // Projects: owner-private presets. Writes need an active account plus
+    // a verified Premium entitlement (or the admin policy opened to free);
+    // reads stay available so a lapsed Premium keeps its data (read-only).
+    match /users/{uid}/projects/{projectId} {
+      allow get, list: if isOwner(uid) && accountActive(uid);
+      allow create: if isOwner(uid)
+        && accountActive(uid)
+        && (hasPremiumEntitlement(uid) || featurePolicyAllows('multiple_named_projects'))
+        && validProject(request.resource.data)
+        && request.resource.data.get('createdAt', null) == request.time
+        && request.resource.data.updatedAt == request.time
+      && request.resource.data.titleKey is string
+      && request.resource.data.titleKey.size() > 0
+      && existsAfter(/databases/$(database)/documents/users/$(uid)/projectTitles/$(request.resource.data.titleKey))
+      && getAfter(/databases/$(database)/documents/users/$(uid)/projectTitles/$(request.resource.data.titleKey)).data.projectId == projectId;
+      allow update: if isOwner(uid)
+        && accountActive(uid)
+        && (hasPremiumEntitlement(uid) || featurePolicyAllows('multiple_named_projects'))
+        && validProject(request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null)
+        && request.resource.data.titleKey is string
+        && request.resource.data.titleKey.size() > 0
+        && existsAfter(/databases/$(database)/documents/users/$(uid)/projectTitles/$(request.resource.data.titleKey))
+        && getAfter(/databases/$(database)/documents/users/$(uid)/projectTitles/$(request.resource.data.titleKey)).data.projectId == projectId;
+      allow delete: if isOwner(uid) && accountActive(uid);
+    }
+
+    // SOL-005: atomic normalized-title uniqueness. One reservation doc per
+    // normalized title key; the client claims/releases it in the SAME
+    // transaction as the project create/rename/delete, so two concurrent
+    // creates with equivalent titles yield exactly one success.
+    // Reservations are immutable (delete + recreate in a transaction);
+    // creates must reference a project of the SAME owner that exists in
+    // the POST-BATCH state (getAfter, so the same-transaction project
+    // create satisfies it).
+    match /users/{uid}/projectTitles/{titleKey} {
+      allow get, list: if isOwner(uid) && accountActive(uid);
+      allow create: if isOwner(uid)
+        && accountActive(uid)
+        && titleKey.matches('^[0-9a-f]{2,240}$')
+        && request.resource.data.keys().hasOnly(['projectId', 'schemaVersion'])
+        && request.resource.data.projectId is string
+        && request.resource.data.projectId.size() > 0
+        && request.resource.data.projectId.size() <= 128
+        && request.resource.data.schemaVersion == 1
+        && getAfter(/databases/$(database)/documents/users/$(uid)/projects/$(request.resource.data.projectId)).data.titleKey == titleKey;
+      allow update: if false;
+      allow delete: if isOwner(uid)
+        && accountActive(uid)
+        && resource.data.projectId is string
+        && ((!existsAfter(/databases/$(database)/documents/users/$(uid)/projects/$(resource.data.projectId)))
+          || (getAfter(/databases/$(database)/documents/users/$(uid)/projects/$(resource.data.projectId)).data.titleKey != titleKey));
     }
 
     // Deny every other path by default (no catch-all allow).

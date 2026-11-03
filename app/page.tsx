@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import BeforeAfterPanel from "../src/components/cleaning/BeforeAfterPanel";
-import BatchPanel from "../src/components/batch/BatchPanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AfterUploadWorkspace from "../src/components/workspace/AfterUploadWorkspace";
+import BeforeUploadHome from "../src/components/workspace/BeforeUploadHome";
 import Footer from "../src/components/layout/Footer";
 import Header from "../src/components/layout/Header";
-import Hero from "../src/components/layout/Hero";
-import InspectorPanel from "../src/components/inspector/InspectorPanel";
-import FuturePanel from "../src/components/panels/FuturePanel";
-import FormatsPanel from "../src/components/panels/FormatsPanel";
-import QueueList from "../src/components/queue/QueueList";
 import {
   applyBinaryVerification,
   clearEntries,
@@ -17,7 +12,6 @@ import {
   removeEntry,
   sniffEntryHead,
 } from "../src/components/queue/queue-store";
-import UploadPanel from "../src/components/upload/UploadPanel";
 import { createRunGuard } from "../src/lib/metadata/verify/run-guard";
 import {
   DEFAULT_CLEANING_TARGETS,
@@ -27,8 +21,10 @@ import {
   type FileCleaningResult,
 } from "../src/lib/metadata/clean/types";
 import { inspectImage } from "../src/lib/metadata/inspect/inspect";
+import { inspectAudio } from "../src/lib/metadata/audio/inspect-audio";
 import { processBatchFile } from "../src/lib/queue/batch-pipeline";
-import { runBatchIds } from "../src/lib/queue/batch-scheduler";
+import { mapWithConcurrency, runBatchIds } from "../src/lib/queue/batch-scheduler";
+import { partitionRewriteIds } from "../src/lib/queue/rewrite-eligibility";
 import {
   buildZipArchive,
   supportsFileSystemAccess,
@@ -42,7 +38,6 @@ import { buildReportPdf } from "../src/lib/reporting/pdf";
 import { buildReportSnapshot } from "../src/lib/reporting/snapshot";
 import type { ReportSnapshot } from "../src/types/reporting";
 import type { ReportChoices } from "../src/components/reports/ReportsPanel";
-import ReportsPanel from "../src/components/reports/ReportsPanel";
 import type { BatchCounts, ZipBuildState } from "../src/types/batch";
 import { emptyBatchCounts } from "../src/types/batch";
 import type {
@@ -51,16 +46,40 @@ import type {
 } from "../src/types/inspection";
 import { emptyInspection } from "../src/types/inspection";
 import type { QueueEntry } from "../src/types/media";
-import AuthPanel from "../src/components/auth/AuthPanel";
-import ProfilePanel from "../src/components/profile/ProfilePanel";
-import RewritePanel from "../src/components/rewrite/RewritePanel";
-import RewriteResultPanel from "../src/components/rewrite/RewriteResultPanel";
 import type { SignedInUser } from "../src/lib/firebase/auth";
 import { subscribeAuthState } from "../src/lib/firebase/auth";
 import { isFirebaseConfigured } from "../src/lib/firebase/config";
-import { blankProfile, PROFILE_FIELDS, validateProfile, type ProfileField } from "../src/lib/metadata/rewrite/fields";
+import ImageDetailsModal from "../src/components/inspector/ImageDetailsModal";
+import EditMetadataModal, { type EditorPlanPayload } from "../src/components/editor/EditMetadataModal";
+import BatchRewriteDialog, { type BatchRewriteSource } from "../src/components/rewrite/BatchRewriteDialog";
+import {
+  blankEditorDraft,
+  editorPlanFor,
+  type EditorDraft,
+  type EditorSource,
+} from "../src/lib/workspace/editor-state";
+import { loadProfile } from "../src/lib/firebase/profile";
+import { useFeaturePolicy } from "../src/lib/workspace/use-feature-policy";
+import { resolveFeatureAccess } from "../src/lib/workspace/policy-state";
+import type { FeatureKey } from "../src/lib/firebase/feature-policy";
+import { getProject, listProjects, type ProjectSummary } from "../src/lib/firebase/projects";
+import type { ProjectRecord } from "../src/lib/projects/project-schema";
+import { blankProfile, validateProfile, type ProfileField } from "../src/lib/metadata/rewrite/fields";
 import { isRewriteDownloadable, type FileRewriteResult, type RewriteMode, type RewriteStatus } from "../src/lib/metadata/rewrite/rewrite";
+import { DEFAULT_REWRITE_FIELDS, DEFAULT_REWRITE_MODE, readRewriteSettings } from "../src/lib/metadata/rewrite/settings";
 import { processRewriteFile } from "../src/lib/queue/rewrite-pipeline";
+import type { GpsCoordinates, GpsEngineDirective } from "../src/lib/metadata/rewrite/gps";
+import {
+  blankGeoDraft,
+  bulkGeoSnapshot,
+  type GeoDraft,
+  type GeoOperation,
+} from "../src/lib/workspace/geotag-state";
+import {
+  REMOVE_AI_METADATA_TARGETS,
+  REMOVE_METADATA_TARGETS,
+  type WorkspaceTool,
+} from "../src/lib/workspace/actions";
 
 /** Max simultaneous inspections; the queue itself has no count cap. */
 const INSPECT_CONCURRENCY = 2;
@@ -81,26 +100,56 @@ const idleZipState = (): ZipBuildState => ({
 export default function Home() {
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [announcement, setAnnouncement] = useState("");
+  // Feature policy + entitlement (Phases 02/03): one resolver drives every
+  // gate. LAZY — nothing touches the network on load; only admin-adjustable
+  // bulk/batch actions fetch the sanitized policy document on demand, and
+  // free-by-contract single-file operations never do.
+  const { policy: policyState, entitlement, refreshPolicy, refreshEntitlement, authReady } = useFeaturePolicy();
+  const [premiumNotice, setPremiumNotice] = useState<string | null>(null);
+  /** Async gate: free-by-contract features are allowed with zero network;
+   *  adjustable features resolve against a fresh server policy and a fresh
+   *  entitlement (revocation while the page is open is honored). */
+  const checkAccess = async (feature: FeatureKey) => {
+    const { isContractFree } = await import("../src/lib/firebase/feature-policy");
+    if (isContractFree(feature)) {
+      return resolveFeatureAccess(feature, entitlement, null);
+    }
+    const [policy, freshEntitlement] = await Promise.all([
+      refreshPolicy(),
+      refreshEntitlement(),
+    ]);
+    return resolveFeatureAccess(feature, freshEntitlement, policy);
+  };
   const [results, setResults] = useState<Record<string, ImageInspectionResult>>({});
   const [inspectingIds, setInspectingIds] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cleaning, setCleaning] = useState<Record<string, FileCleaningResult>>({});
   const [cleaningIds, setCleaningIds] = useState<string[]>([]);
-  const [cleanViewId, setCleanViewId] = useState<string | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
   const [cleaningTargets, setCleaningTargets] = useState<CleaningTarget[]>(DEFAULT_CLEANING_TARGETS);
+  const [activeTool, setActiveTool] = useState<WorkspaceTool>("ai_metadata");
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [editorId, setEditorId] = useState<string | null>(null);
+  const [editorFromDetails, setEditorFromDetails] = useState(false);
+  const [editorDrafts, setEditorDrafts] = useState<Record<string, EditorDraft>>({});
+  const [editorProgress, setEditorProgress] = useState<string | null>(null);
+  const editorDraftsRef = useRef<Record<string, EditorDraft>>({});
   const [partialIncluded, setPartialIncluded] = useState<string[]>([]);
   const [includeAllPartials, setIncludeAllPartials] = useState(false);
   const [user, setUser] = useState<SignedInUser | null>(null);
-  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [profile, setProfile] = useState(() => blankProfile());
-  const [rewriteMode, setRewriteMode] = useState<RewriteMode>("replace_editable");
-  const [rewriteFields, setRewriteFields] = useState<readonly ProfileField[]>([...PROFILE_FIELDS]);
+  const [rewriteMode, setRewriteMode] = useState<RewriteMode>(DEFAULT_REWRITE_MODE);
+  const [rewriteFields, setRewriteFields] = useState<readonly ProfileField[]>(DEFAULT_REWRITE_FIELDS);
   const [rewrites, setRewrites] = useState<Record<string, FileRewriteResult>>({});
   const [rewritingIds, setRewritingIds] = useState<string[]>([]);
-  const [rewriteViewId, setRewriteViewId] = useState<string | null>(null);
   const [rewriteProgress, setRewriteProgress] = useState<string | null>(null);
+  // Screen 09 GeoTag drafts — keyed by the queue's stable per-file id, so
+  // editing image A can never leak coordinates into image B.
+  const [geoDrafts, setGeoDrafts] = useState<Record<string, GeoDraft>>({});
+  const [geoLastOp, setGeoLastOp] = useState<Record<string, "write" | "remove">>({});
+  /** The GPS operation currently in flight (cleared when the run ends). */
+  const [geoPendingOp, setGeoPendingOp] = useState<"write" | "remove" | null>(null);
   const [batch, setBatch] = useState<{ jobId: number; total: number; done: number; current: string | null } | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
   const [reportChoices, setReportChoices] = useState<ReportChoices>(DEFAULT_REPORT_CHOICES);
@@ -119,10 +168,36 @@ export default function Home() {
   const zipGuardRef = useRef(createRunGuard());
   const resultsRef = useRef<Record<string, ImageInspectionResult>>({});
   const announcedQuartile = useRef(0);
-  const resultRegionRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     resultsRef.current = results;
   }, [results]);
+  useEffect(() => {
+    editorDraftsRef.current = editorDrafts;
+  }, [editorDrafts]);
+  useEffect(() => {
+    const settings = readRewriteSettings();
+    const timer = window.setTimeout(() => {
+      setRewriteMode(settings.mode);
+      setRewriteFields(settings.fields);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // ---- Phase 05: saved-project picker state (declared before the auth
+  // effect that loads it) ---------------------------------------------------
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projectDetails, setProjectDetails] = useState<Record<string, ProjectRecord>>({});
+
+  /** Lazy per-session load when a signed-in user is present. */
+  const loadProjectsForPicker = useCallback(async (uid: string) => {
+    try {
+      const rows = await listProjects(uid);
+      setProjects(rows);
+    } catch {
+      setProjects([]);
+    }
+  }, []);
+
   // Subscribe to Firebase auth transitions when configured; guests are
   // unaffected (no network, no account) when configuration is absent.
   // On sign-in, best-effort extras run silently in the background: the
@@ -139,19 +214,29 @@ export default function Home() {
       if (!next) {
         // Sign-out clears in-memory profile authority; queue/outputs stay.
         setProfile(blankProfile());
-        setRewriteViewId(null);
-        setIsSuperadmin(false);
         setIsSuspended(false);
+        setProjects([]);
+        setProjectDetails({});
         return;
       }
       void (async () => {
+        setProfile(blankProfile());
+        // Phase 05: the project picker loads the signed-in user's own
+        // project summaries (details are fetched on selection).
+        void loadProjectsForPicker(next.uid);
         try {
-          const { fetchSessionUser } = await import("../src/lib/firebase/session");
-          const session = await fetchSessionUser().catch(() => null);
-          if (!active) return;
-          setIsSuperadmin(session?.superadmin ?? false);
+          const saved = await loadProfile(next.uid);
+          // loadProfile returns { profile, updatedAt }; unwrap the validated
+          // profile so Screen 06 actually receives the saved values.
+          if (active && saved) {
+            setProfile({
+              ...blankProfile(),
+              ...saved.profile,
+              keywordsList: saved.profile.keywordsList ?? [],
+            });
+          }
         } catch {
-          if (active) setIsSuperadmin(false);
+          // Profile loading is best effort. Guest cleaning and the queue stay local.
         }
         try {
           const { ensureAccountRecord, fetchOwnStatus } = await import("../src/lib/firebase/directory");
@@ -176,16 +261,7 @@ export default function Home() {
       active = false;
       unsubscribe?.();
     };
-  }, []);
-  useEffect(() => {
-    if (!selectedId && !cleanViewId) return;
-    const frame = window.requestAnimationFrame(() => {
-      resultRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      resultRegionRef.current?.focus({ preventScroll: true });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [selectedId, cleanViewId]);
-
+  }, [loadProjectsForPicker]);
   const resetExportStatus = () => {
     zipGuardRef.current.cancel();
     reportGuardRef.current.cancel();
@@ -197,6 +273,375 @@ export default function Home() {
   };
 
   const isInspecting = (id: string) => inspectingIds.includes(id);
+
+  /** Screen 05: the details dialog targets items with a live inspection result. */
+  const detailsEntry = detailsId ? entries.find((entry) => entry.item.id === detailsId) : undefined;
+  const detailsNavList = entries.filter((entry) => results[entry.item.id] !== undefined);
+  const detailsNavIndex = detailsId ? detailsNavList.findIndex((entry) => entry.item.id === detailsId) : -1;
+
+  /* ---- Screen 06 — single-image editor (guest usable, source-pure) ---- */
+
+  const editorEntry = editorId ? entries.find((entry) => entry.item.id === editorId) : undefined;
+  const editorDraftForOpen = editorId
+    ? editorDrafts[editorId] ?? blankEditorDraft(DEFAULT_REWRITE_MODE)
+    : blankEditorDraft(DEFAULT_REWRITE_MODE);
+
+  const ensureEditorDraft = (id: string) => {
+    setEditorDrafts((previous) => {
+      if (previous[id]) return previous;
+      return { ...previous, [id]: blankEditorDraft(readRewriteSettings().mode) };
+    });
+  };
+
+  /** Row Edit trigger: opens Screen 06 for that file only. */
+  const handleOpenEditor = (id: string) => {
+    ensureEditorDraft(id);
+    setEditorId(id);
+    setEditorFromDetails(false);
+  };
+
+  /** Screen 05 trigger: closes the details dialog first (single focus trap). */
+  const handleOpenEditorFromDetails = (id: string) => {
+    ensureEditorDraft(id);
+    setEditorId(id);
+    setEditorFromDetails(true);
+    setDetailsId(null);
+  };
+
+  /** Cancel/close keeps the draft (it survives reopening per spec). */
+  const handleEditorClose = () => {
+    const id = editorId;
+    setEditorId(null);
+    setEditorProgress(null);
+    if (editorFromDetails && id && entries.some((entry) => entry.item.id === id)) {
+      setDetailsId(id);
+    }
+    setEditorFromDetails(false);
+  };
+
+  /** "View full metadata details" inside the editor → Screen 05 for the same file. */
+  const handleEditorViewDetails = () => {
+    const id = editorId;
+    setEditorId(null);
+    setEditorProgress(null);
+    setEditorFromDetails(false);
+    if (id) setDetailsId(id);
+  };
+
+  const updateEditorDraft = (id: string, update: (draft: EditorDraft) => EditorDraft) => {
+    setEditorDrafts((previous) => ({
+      ...previous,
+      [id]: update(previous[id] ?? blankEditorDraft(readRewriteSettings().mode)),
+    }));
+  };
+
+  /** Explicit copy action: snapshot profile values into the image draft —
+   *  an independent image-specific copy; the sources never stay merged. */
+  const handleEditorCopyProfile = (id: string) => {
+    updateEditorDraft(id, (draft) => {
+      const next = blankEditorDraft(draft.mode);
+      let copied = 0;
+      for (const field of rewriteFields) {
+        const value = field === "keywords"
+          ? profile.keywordsList.join(", ")
+          : profile[field];
+        if (value.trim() !== "") {
+          next.values[field] = value;
+          copied += 1;
+        }
+      }
+      setAnnouncement(copied > 0
+        ? `Copied ${copied} saved-profile value${copied === 1 ? "" : "s"} into this image's form as an independent copy.`
+        : "The saved profile has no values to copy yet.");
+      return { ...next, source: "custom" };
+    });
+  };
+
+  /**
+   * Apply & create clean copy — reuses the exact verified per-file rewrite
+   * pipeline. Guests apply custom values without sign-in (Rule B): the
+   * pipeline itself has no auth; only saved-profile REUSE is gated.
+   */
+  const startEditorRewrite = async (id: string) => {
+    const draft = editorDraftsRef.current[id];
+    if (!draft) return;
+    const plan = editorPlanFor(draft, profile, draft.projectId ? projectDetails[draft.projectId] ?? null : null);
+    if (!plan.canApply) {
+      setAnnouncement(plan.blockedReason ?? "Nothing to apply yet.");
+      return;
+    }
+    resetExportStatus();
+    const token = rewriteGuardRef.current.token();
+    setRewritingIds([id]);
+    setEditorProgress("Reading bytes…");
+    setAnnouncement(`Rewrite started for one file (${plan.mode.replace(/_/g, " ")}).`);
+    try {
+      const result = await processRewriteFile(id, {
+        ...rewriteDepsFor(),
+        profile: plan.profile,
+        selectedFields: plan.selectedFields,
+        mode: plan.mode,
+        // Phase 05: a selected project's coordinates ride the SAME verified
+        // GPS writer (1e-6° read-back verification); null project coords
+        // never touch GPS.
+        ...(plan.source === "project" && plan.gps ? { gps: { op: "write" as const, coords: plan.gps } } : {}),
+        onStage: (stage) => setEditorProgress(stage === "sniff"
+          ? "Reading bytes…"
+          : stage === "inspect"
+            ? "Inspecting…"
+            : "Writing metadata…"),
+      });
+      if (!rewriteGuardRef.current.isCurrent(token)) return;
+      if (!entriesRef.current.some((entry) => entry.item.id === id)) {
+        setEditorId((current) => (current === id ? null : current));
+        setEditorProgress(null);
+        return;
+      }
+      setRewrites((previous) => ({ ...previous, [id]: result }));
+      setExpandedIds((previous) => (previous.includes(id) ? previous : [...previous, id]));
+      setEditorProgress(null);
+      setAnnouncement(`Rewrite finished for one file: ${result.status.replace(/_/g, " ")}.`);
+    } catch {
+      if (!rewriteGuardRef.current.isCurrent(token)) return;
+      const entry = entriesRef.current.find((candidate) => candidate.item.id === id);
+      if (!entry) {
+        setEditorId((current) => (current === id ? null : current));
+        setEditorProgress(null);
+        return;
+      }
+      const failed: FileRewriteResult = {
+        fileId: id,
+        inputName: entry.item.name,
+        detectedFormat: "unknown",
+        inputBytes: entry.source.size,
+        before: resultsRef.current[id] ?? emptyInspection(id, entry.item.name, entry.source.size),
+        mode: plan.mode,
+        requestedFields: [...plan.selectedFields],
+        status: "failed",
+        changes: [],
+        warnings: [],
+        errors: ["An unexpected editor rewrite error occurred. No output was created."],
+        rewrittenAt: new Date().toISOString(),
+      };
+      setRewrites((previous) => ({ ...previous, [id]: failed }));
+      setEditorProgress(null);
+      setAnnouncement("Editor rewrite failed. No output was created.");
+    }
+    if (rewriteGuardRef.current.isCurrent(token)) {
+      setRewritingIds((previous) => previous.filter((candidate) => candidate !== id));
+      setEditorProgress(null);
+    }
+  };
+
+  const handleEditorApply = (payload: EditorPlanPayload) => {
+    if (!editorId) return;
+    void (async () => {
+      // Saved-project applies are premium-gated (Rule 10) with the same
+      // fresh policy+entitlement check as every other gated action.
+      if (payload.projectId !== null) {
+        const access = await checkAccess("saved_project_apply");
+        if (!access.allowed) {
+          setPremiumNotice(access.reason);
+          setAnnouncement(access.reason);
+          return;
+        }
+        const record = projectDetails[payload.projectId] ?? await getProject(user?.uid ?? "", payload.projectId);
+        if (!record) {
+          setAnnouncement("The selected project is no longer available — pick another project or use custom values (still free).");
+          return;
+        }
+      }
+      await startEditorRewrite(editorId);
+    })();
+  };
+
+  const handleProjectSelect = (projectId: string | null) => {
+    if (!editorId) return;
+    updateEditorDraft(editorId, (draft) => ({ ...draft, source: projectId ? "project" : "custom", projectId }));
+    if (projectId && !projectDetails[projectId] && user) {
+      void (async () => {
+        try {
+          const record = await getProject(user.uid, projectId);
+          if (record) {
+            setProjectDetails((previous) => ({ ...previous, [projectId]: record }));
+          }
+        } catch {
+          setAnnouncement("The selected project could not be loaded — pick another project or use custom values (still free).");
+        }
+      })();
+    }
+  };
+
+  // ---- Screen 09: verified GPS write/remove through the same pipeline ----
+
+  const failedGeoResult = (id: string, op: GeoOperation, errors: string[]): FileRewriteResult => {
+    const entry = entriesRef.current.find((candidate) => candidate.item.id === id);
+    const draft = editorDraftsRef.current[id] ?? blankEditorDraft(readRewriteSettings().mode);
+    return {
+      fileId: id,
+      inputName: entry?.item.name ?? id,
+      detectedFormat: "unknown",
+      inputBytes: entry?.source.size ?? 0,
+      before: resultsRef.current[id] ?? emptyInspection(id, entry?.item.name ?? id, entry?.source.size ?? 0),
+      mode: draft.mode,
+      requestedFields: [],
+      status: "failed",
+      changes: [],
+      warnings: [],
+      errors,
+      rewrittenAt: new Date().toISOString(),
+    };
+  };
+
+  /** GPS-only rows keep their descriptive text fields untouched (update). */
+  const depsWithGps = (id: string, op: GeoOperation, coords: GpsCoordinates | null, mode: RewriteMode) => {
+    const directive: GpsEngineDirective | undefined = op === "remove"
+      ? { op: "remove" }
+      : coords
+        ? { op: "write", coords }
+        : undefined;
+    const draft = editorDraftsRef.current[id] ?? blankEditorDraft(mode);
+    const plan = editorPlanFor(draft, profile);
+    return {
+      ...rewriteDepsFor(),
+      profile: plan.profile,
+      selectedFields: plan.selectedFields,
+      mode: plan.mode,
+      ...(directive ? { gps: directive } : {}),
+    };
+  };
+
+  const startGeoRewrite = async (id: string, op: GeoOperation, coords: GpsCoordinates | null) => {
+    const entry = entriesRef.current.find((candidate) => candidate.item.id === id);
+    if (!entry || entry.item.detected.mediaKind !== "image") return;
+    if (op === "write" && !coords) return;
+    resetExportStatus();
+    const token = rewriteGuardRef.current.token();
+    setRewritingIds([id]);
+    setGeoPendingOp(op);
+    setEditorProgress(op === "remove" ? "Removing GPS tags…" : "Writing GPS metadata…");
+    setAnnouncement(`GPS ${op === "remove" ? "removal" : "write"} started for ${entry.item.name}.`);
+    try {
+      const draft = editorDraftsRef.current[id] ?? blankEditorDraft(readRewriteSettings().mode);
+      const result = await processRewriteFile(id, {
+        ...depsWithGps(id, op, coords, draft.mode),
+        onStage: (stage) => setEditorProgress(stage === "sniff"
+          ? "Reading bytes…"
+          : stage === "inspect"
+            ? "Inspecting…"
+            : op === "remove" ? "Removing GPS tags…" : "Writing GPS metadata…"),
+      });
+      if (!rewriteGuardRef.current.isCurrent(token)) return;
+      if (!entriesRef.current.some((candidate) => candidate.item.id === id)) {
+        setEditorId((current) => (current === id ? null : current));
+        setEditorProgress(null);
+        setGeoPendingOp(null);
+        return;
+      }
+      setRewrites((previous) => ({ ...previous, [id]: result }));
+      setGeoLastOp((previous) => ({ ...previous, [id]: op }));
+      setExpandedIds((previous) => (previous.includes(id) ? previous : [...previous, id]));
+      setEditorProgress(null);
+      setAnnouncement(
+        op === "remove"
+          ? `GPS removal finished for one file: ${result.status.replace(/_/g, " ")}.`
+          : `GPS write finished for one file: ${result.status.replace(/_/g, " ")}.`,
+      );
+    } catch {
+      if (!rewriteGuardRef.current.isCurrent(token)) return;
+      setRewrites((previous) => ({
+        ...previous,
+        [id]: failedGeoResult(id, op, ["An unexpected GPS operation error occurred. No output was created."]),
+      }));
+      setEditorProgress(null);
+      setAnnouncement("GPS operation failed. No output was created.");
+    }
+    if (rewriteGuardRef.current.isCurrent(token)) {
+      setRewritingIds((previous) => previous.filter((candidate) => candidate !== id));
+      setEditorProgress(null);
+      setGeoPendingOp(null);
+    }
+  };
+
+  const handleGeoApply = (op: GeoOperation, coords: GpsCoordinates | null) => {
+    if (!editorId) return;
+    void startGeoRewrite(editorId, op, coords);
+  };
+
+  /** Bulk geotagging over the EXPLICIT selected-file snapshot (taken now). */
+  const handleGeoApplyBulk = async (op: GeoOperation, coords: GpsCoordinates | null) => {
+    if (!editorId) return;
+    if (op === "write" && !coords) return;
+    const snapshot = bulkGeoSnapshot(editorId, selection, entriesRef.current);
+    if (snapshot.length === 0) {
+      setAnnouncement("No selected images to geotag.");
+      return;
+    }
+    // Policy split (roadmap 06): GPS WRITE on 2+ images is a batch GPS
+    // write; pure GPS REMOVAL is a cleaning action covered by the bulk
+    // cleaning policy (free by default) — never reclassified as paid writing.
+    const policyFeature: FeatureKey = op === "write"
+      ? (snapshot.length >= 2 ? "batch_gps_write" : "single_custom_rewrite")
+      : (snapshot.length >= 2 ? "bulk_metadata_clean" : "single_metadata_clean");
+    const access = await checkAccess(policyFeature);
+    if (!access.allowed) {
+      setPremiumNotice(access.reason);
+      setAnnouncement(access.reason);
+      return;
+    }
+    resetExportStatus();
+    const token = rewriteGuardRef.current.token();
+    setRewritingIds(snapshot);
+    setGeoPendingOp(op === "write" ? "write" : "remove");
+    let done = 0;
+    let verified = 0;
+    let failed = 0;
+    for (const id of snapshot) {
+      if (!rewriteGuardRef.current.isCurrent(token)) break;
+      const entry = entriesRef.current.find((candidate) => candidate.item.id === id);
+      if (!entry || entry.item.detected.mediaKind !== "image") {
+        done += 1;
+        continue;
+      }
+      setRewriteProgress(`Geotagging ${done + 1}/${snapshot.length}: ${entry.item.name}…`);
+      try {
+        const draft = editorDraftsRef.current[id] ?? blankEditorDraft(readRewriteSettings().mode);
+        const result = await processRewriteFile(id, depsWithGps(id, op, coords, draft.mode));
+        if (!rewriteGuardRef.current.isCurrent(token)) break;
+        if (!entriesRef.current.some((candidate) => candidate.item.id === id)) {
+          done += 1;
+          continue;
+        }
+        setRewrites((previous) => ({ ...previous, [id]: result }));
+        setGeoLastOp((previous) => ({ ...previous, [id]: op }));
+        if (result.status === "verified_rewritten" || result.status === "partially_rewritten") verified += 1;
+        else failed += 1;
+      } catch {
+        if (!rewriteGuardRef.current.isCurrent(token)) break;
+        setRewrites((previous) => ({
+          ...previous,
+          [id]: failedGeoResult(id, op, ["An unexpected GPS operation error occurred. No output was created."]),
+        }));
+        failed += 1;
+      }
+      done += 1;
+      setRewriteProgress(`Geotagging ${Math.min(done, snapshot.length)}/${snapshot.length}…`);
+    }
+    const cancelled = !rewriteGuardRef.current.isCurrent(token);
+    setRewritingIds([]);
+    setRewriteProgress(null);
+    setGeoPendingOp(null);
+    if (cancelled) setAnnouncement("Bulk geotagging cancelled. Finished files keep their verified results.");
+    else {
+      setEditorProgress(null);
+      setAnnouncement(`Bulk GPS ${op}: ${done} file${done === 1 ? "" : "s"} processed — ${verified} verified, ${failed} failed/withheld. Verified outputs are downloadable and ZIP-eligible.`);
+    }
+  };
+
+  /** Runs the existing verified single-file metadata removal pipeline. */
+  const handleRemoveFromDetails = (id: string) => {
+    void startBatch([id], REMOVE_METADATA_TARGETS, "Metadata removal");
+  };
 
   const applyResult = (run: number, id: string, result: ImageInspectionResult) => {
     if (runRef.current !== run) return; // cancelled run: discard
@@ -218,7 +663,11 @@ export default function Home() {
     if (!entry) return;
     let result: ImageInspectionResult;
     try {
-      result = await inspectImage(id, entry.source, entry.item.name);
+      // Phase 07: audio files take the MP3 inspector — same result shape,
+      // audio-honest categories (never EXIF/GPS counts for audio).
+      result = entry.item.detected.mediaKind === "audio"
+        ? await inspectAudio(id, entry.source, entry.item.name)
+        : await inspectImage(id, entry.source, entry.item.name);
     } catch {
       result = {
         ...emptyInspection(id, entry.item.name, entry.source.size),
@@ -242,13 +691,14 @@ export default function Home() {
     }
     if (runRef.current === run && ids.length > 0) {
       const firstAlive = ids.find((id) => entriesRef.current.some((e) => e.item.id === id));
-      if (firstAlive && openDetails) setSelectedId(firstAlive);
+      if (firstAlive && openDetails) {
+        setExpandedIds((previous) => previous.includes(firstAlive) ? previous : [...previous, firstAlive]);
+      }
       setAnnouncement(`Inspection finished for ${ids.length} file${ids.length === 1 ? "" : "s"}.`);
     }
   };
 
   const handleInspectOne = (id: string) => {
-    setCleanViewId(null);
     void inspectIds([id]);
   };
 
@@ -264,7 +714,7 @@ export default function Home() {
     setAnnouncement("Cleaning cancelled. Finished files keep their results; nothing half-written is offered.");
   };
 
-  const pipelineDeps = () => ({
+  const pipelineDeps = (targets: readonly CleaningTarget[] = cleaningTargets) => ({
     getEntry: (id: string) => entriesRef.current.find((e) => e.item.id === id),
     getInspection: (id: string) => resultsRef.current[id],
     setInspection: (id: string, result: ImageInspectionResult) => {
@@ -276,83 +726,42 @@ export default function Home() {
     },
     policy: {
       mode: PRIVACY_SAFE_DEFAULT.mode,
-      targets: cleaningTargets,
+      targets: [...targets],
     },
   });
 
-  const handleCleanOne = async (id: string) => {
-    const entry = entriesRef.current.find((e) => e.item.id === id);
-    if (!entry) return;
-    if (entry.item.detected.mediaKind !== "image") {
-      setAnnouncement(`${entry.item.name} is not a supported still image, so cleaning was not started.`);
-      return;
-    }
-    if (cleaningTargets.length === 0) {
-      setAnnouncement("Choose at least one metadata type to clean.");
-      return;
-    }
-    resetExportStatus();
-    setSelectedId(null);
-    const token = cleanGuardRef.current.token();
-    setCleaningIds((previous) => (previous.includes(id) ? previous : [...previous, id]));
-    setAnnouncement(`Cleaning ${entry.item.name}: inspecting original, cleaning, verifying output.`);
-    try {
-      const cleaned = await processBatchFile(id, pipelineDeps());
-      if (!cleanGuardRef.current.isCurrent(token)) return;
-      if (!entriesRef.current.some((e) => e.item.id === id)) return;
-      setCleaning((previous) => ({ ...previous, [id]: cleaned }));
-      setCleanViewId(id);
-      setAnnouncement(`Cleaning finished for ${entry.item.name}: ${cleaned.status.replace(/_/g, " ")}.`);
-    } catch {
-      if (!cleanGuardRef.current.isCurrent(token)) return;
-      const failed: FileCleaningResult = {
-        fileId: id,
-        inputName: entry.item.name,
-        detectedFormat: "unknown",
-        inputBytes: entry.source.size,
-        before: resultsRef.current[id] ?? emptyInspection(id, entry.item.name, entry.source.size),
-        policy: { mode: PRIVACY_SAFE_DEFAULT.mode, targets: cleaningTargets },
-        status: "failed",
-        changes: [],
-        warnings: [],
-        errors: ["An unexpected cleaning error occurred. No output was created."],
-        cleanedAt: new Date().toISOString(),
-      };
-      setCleaning((previous) => ({ ...previous, [id]: failed }));
-      setCleanViewId(id);
-      setAnnouncement(`Cleaning failed for ${entry.item.name}. No output was created.`);
-    } finally {
-      setCleaningIds((previous) => previous.filter((active) => active !== id));
-    }
-  };
-
-  const selectableIds = (list: QueueEntry[]) =>
-    list.filter((entry) => entry.item.detected.mediaKind === "image").map((entry) => entry.item.id);
-
-  const startBatch = async (ids: string[]) => {
+  const startBatch = async (
+    ids: string[],
+    targets: readonly CleaningTarget[] = cleaningTargets,
+    label = "Metadata removal",
+  ) => {
+    // Phase 11: MP3 cleaning rides the same free runner (metadata AND AI
+    // removal, single or bulk — bulk cleaning stays free by default).
     const eligible = ids.filter((id) =>
-      entriesRef.current.some((entry) => entry.item.id === id && entry.item.detected.mediaKind === "image"),
+      entriesRef.current.some((entry) => entry.item.id === id && (entry.item.detected.mediaKind === "image" || entry.item.detected.mediaKind === "audio")),
     );
     if (eligible.length === 0) {
       setAnnouncement("Nothing eligible to clean.");
       return;
     }
-    if (cleaningTargets.length === 0) {
+    if (targets.length === 0) {
       setAnnouncement("Choose at least one metadata type to clean.");
       return;
     }
     resetExportStatus();
+    const activeTargets = [...targets];
+    setCleaningTargets(activeTargets);
     const token = batchGuardRef.current.token();
     announcedQuartile.current = 0;
     setBatchRunning(true);
     setBatch({ jobId: token, total: eligible.length, done: 0, current: null });
-    setAnnouncement(`Batch started: ${eligible.length} file${eligible.length === 1 ? "" : "s"}, one at a time.`);
+    setAnnouncement(`${label} started for ${eligible.length} file${eligible.length === 1 ? "" : "s"}, one at a time.`);
     await runBatchIds({
       ids: eligible,
       isActive: () => batchGuardRef.current.isCurrent(token),
       isEligible: (id) => batchGuardRef.current.isCurrent(token) && entriesRef.current.some((e) => e.item.id === id),
       process: (id) => processBatchFile(id, {
-        ...pipelineDeps(),
+        ...pipelineDeps(activeTargets),
         onStage: (stage) => {
           const entry = entriesRef.current.find((e) => e.item.id === id);
           setBatch((previous) => previous && previous.jobId === token
@@ -362,6 +771,9 @@ export default function Home() {
       }),
       onDone: (id, result) => {
         setCleaning((previous) => ({ ...previous, [id]: result }));
+        if (eligible.length === 1) {
+          setExpandedIds((previous) => previous.includes(id) ? previous : [...previous, id]);
+        }
       },
       onError: (id) => {
         const entry = entriesRef.current.find((candidate) => candidate.item.id === id);
@@ -372,7 +784,7 @@ export default function Home() {
           detectedFormat: "unknown",
           inputBytes: entry.source.size,
           before: resultsRef.current[id] ?? emptyInspection(id, entry.item.name, entry.source.size),
-          policy: { mode: PRIVACY_SAFE_DEFAULT.mode, targets: cleaningTargets },
+          policy: { mode: PRIVACY_SAFE_DEFAULT.mode, targets: activeTargets },
           status: "failed",
           changes: [],
           warnings: [],
@@ -380,6 +792,9 @@ export default function Home() {
           cleanedAt: new Date().toISOString(),
         };
         setCleaning((previous) => ({ ...previous, [id]: failed }));
+        if (eligible.length === 1) {
+          setExpandedIds((previous) => previous.includes(id) ? previous : [...previous, id]);
+        }
       },
       onProgress: (done, total) => {
         if (!batchGuardRef.current.isCurrent(token)) return;
@@ -397,16 +812,45 @@ export default function Home() {
     setBatch((previous) => (previous && previous.jobId === token ? { ...previous, current: null } : previous));
     setAnnouncement(cancelled
       ? "Batch cancelled. Finished files keep their verified results."
-      : `Batch finished: ${eligible.length} file${eligible.length === 1 ? "" : "s"} processed.`);
+      : `${label} finished for ${eligible.length} file${eligible.length === 1 ? "" : "s"}.`);
   };
 
-  const handleCleanAll = () => {
-    void startBatch(selectableIds(entriesRef.current));
-  };
-
-  const handleCleanSelected = () => {
+  const selectedEligibleIds = () => {
     const alive = new Set(entriesRef.current.map((e) => e.item.id));
-    void startBatch(selection.filter((id) => alive.has(id) && entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind === "image"));
+    // Cleanable kinds: images AND MP3 (audio) — the rewrite path filters to
+    // still images again inside startRewriteBatch.
+    return selection.filter((id) => alive.has(id) && entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind !== "unknown");
+  };
+
+  const handleRemoveMetadata = () => {
+    const ids = selectedEligibleIds();
+    void (async () => {
+      // One file = single-file cleaning: free by contract, zero network.
+      if (ids.length >= 2) {
+        const access = await checkAccess("bulk_metadata_clean");
+        if (!access.allowed) {
+          setPremiumNotice(access.reason);
+          setAnnouncement(access.reason);
+          return;
+        }
+      }
+      await startBatch(ids, REMOVE_METADATA_TARGETS, "Metadata removal");
+    })();
+  };
+
+  const handleRemoveAiMetadata = () => {
+    const ids = selectedEligibleIds();
+    void (async () => {
+      if (ids.length >= 2) {
+        const access = await checkAccess("bulk_ai_metadata_clean");
+        if (!access.allowed) {
+          setPremiumNotice(access.reason);
+          setAnnouncement(access.reason);
+          return;
+        }
+      }
+      await startBatch(ids, REMOVE_AI_METADATA_TARGETS, "AI metadata removal");
+    })();
   };
 
   const handleCancelBatch = () => {
@@ -450,7 +894,11 @@ export default function Home() {
     if (!user) return "Sign in to apply a profile.";
     if (isSuspended) return "This account is suspended from cloud features — anonymous cleaning stays available.";
     const entry = entriesRef.current.find((e) => e.item.id === id);
-    if (!entry || entry.item.detected.mediaKind !== "image") return "Only still images can be rewritten.";
+    // SOL-003: images AND MP3 audio are rewrite-eligible; other kinds are
+    // skipped downstream and disclosed, never a hard abort.
+    if (!entry || (entry.item.detected.mediaKind !== "image" && entry.item.detected.mediaKind !== "audio")) {
+      return "This file type is preview-only and will be skipped (supported files still run).";
+    }
     const { profile: valid, errors } = validateProfile(profile as unknown as Record<string, unknown>);
     void valid;
     if (Object.keys(errors).length > 0) return "Fix profile validation errors first.";
@@ -458,18 +906,72 @@ export default function Home() {
     return null;
   };
 
-  const startRewriteBatch = async (ids: string[]) => {
-    const blocked = ids.map((id) => rewriteReady(id)).find((reason) => reason !== null);
+  /** SOL-003/008/009: batch source snapshot — the plan confirmed in the
+   *  dialog is the plan executed; mid-run changes never redirect it. */
+  const startRewriteBatch = async (
+    ids: string[],
+    sourceSpec: { source: BatchRewriteSource; projectId: string | null; customDraft: EditorDraft | null } = { source: "profile", projectId: null, customDraft: null },
+  ) => {
+    const { source: batchSourceSpec, projectId: projectIdSpec, customDraft: customDraftSpec } = sourceSpec;
+    const { eligibleIds: eligible, skippedIds } = partitionRewriteIds(entriesRef.current, ids);
+    const blocked = eligible.map((id) => rewriteReady(id)).find((reason) => reason !== null);
     if (blocked) {
       setAnnouncement(blocked);
       return;
     }
-    const eligible = ids.filter((id) =>
-      entriesRef.current.some((entry) => entry.item.id === id && entry.item.detected.mediaKind === "image"),
-    );
     if (eligible.length === 0) {
       setAnnouncement("Nothing eligible to rewrite.");
       return;
+    }
+    if (skippedIds.length > 0) {
+      setAnnouncement(`${skippedIds.length} unsupported preview-only file${skippedIds.length === 1 ? " was" : "s were"} skipped; continuing with ${eligible.length} supported file${eligible.length === 1 ? "" : "s"}.`);
+    }
+    // Two or more files in one run is a batch rewrite (premium by
+    // default); a single file stays the free single-file rewrite.
+    if (eligible.length >= 2) {
+      // SOL-008: ONE combined preflight checks every independent policy key
+      // this exact run needs (batch rewrite + saved-project apply + GPS).
+      const needsProjectApply = batchSourceSpec === "project" && projectIdSpec !== null;
+      const access = await checkAccess("batch_metadata_rewrite");
+      if (!access.allowed) {
+        setPremiumNotice(access.reason);
+        setAnnouncement(access.reason);
+        return;
+      }
+      // Batch project payload (Phase 06): resolve the project NOW and
+      // snapshot it for the whole run — mid-run changes never redirect.
+      if (projectIdSpec) {
+        const record = projectDetails[projectIdSpec] ?? (user ? await getProject(user.uid, projectIdSpec).catch(() => null) : null);
+        if (!record) {
+          setAnnouncement("The selected project is no longer available — the batch was not started.");
+          return;
+        }
+        batchProjectRef.current = record;
+      } else {
+        batchProjectRef.current = null;
+      }
+      if (needsProjectApply) {
+        const projectAccess = await checkAccess("saved_project_apply");
+        if (!projectAccess.allowed) {
+          setPremiumNotice(projectAccess.reason);
+          setAnnouncement(projectAccess.reason);
+          return;
+        }
+      }
+      // GPS policy applies only when the resolved project actually carries
+      // coordinates AND at least one eligible image would receive them.
+      const projectRecord = batchProjectRef.current;
+      if (projectRecord && projectRecord.latitude !== null && projectRecord.longitude !== null
+        && eligible.some((id) => entriesRef.current.find((entry) => entry.item.id === id)?.item.detected.mediaKind === "image")) {
+        const gpsAccess = await checkAccess("batch_gps_write");
+        if (!gpsAccess.allowed) {
+          setPremiumNotice(gpsAccess.reason);
+          setAnnouncement(gpsAccess.reason);
+          return;
+        }
+      }
+    } else {
+      batchProjectRef.current = null;
     }
     resetExportStatus();
     const token = rewriteGuardRef.current.token();
@@ -479,20 +981,43 @@ export default function Home() {
     let done = 0;
     for (const id of eligible) {
       if (!rewriteGuardRef.current.isCurrent(token)) break;
-      if (!entriesRef.current.some((e) => e.item.id === id)) {
+      const entryKind = entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind ?? null;
+      if (!entryKind) {
         done += 1;
         continue;
       }
       setRewriteProgress(`Rewriting ${done + 1}/${eligible.length}…`);
       try {
-        const result = await processRewriteFile(id, rewriteDepsFor());
+        // Snapshot source payload: every file in this run gets the SAME
+        // resolved source (project / profile / custom) — no mid-run redirection.
+        const project = batchProjectRef.current;
+        // SOL-003: GPS travels with images only; MP3 rows run without it
+        // (the MP3 writer independently discloses GPS as unsupported).
+        const plan = project
+          ? editorPlanFor({ source: "project", values: blankEditorDraft(rewriteMode).values, mode: rewriteMode, projectId: project.projectId }, profile, project)
+          : customDraftSpec
+            ? editorPlanFor({ ...customDraftSpec, mode: rewriteMode, projectId: null }, profile)
+            : editorPlanFor({ source: "profile", values: blankEditorDraft(rewriteMode).values, mode: rewriteMode, projectId: null }, profile);
+        const isImage = entryKind === "image";
+        const gpsDirective = plan.gps
+          ? (isImage ? { op: "write" as const, coords: plan.gps } : null)
+          : undefined;
+        const result = await processRewriteFile(id, {
+          ...rewriteDepsFor(),
+          profile: plan.profile,
+          selectedFields: plan.selectedFields,
+          mode: plan.mode,
+          ...(gpsDirective ? { gps: gpsDirective } : {}),
+        });
         if (!rewriteGuardRef.current.isCurrent(token)) break;
         if (!entriesRef.current.some((e) => e.item.id === id)) {
           done += 1;
           continue;
         }
         setRewrites((previous) => ({ ...previous, [id]: result }));
-        if (eligible.length === 1) setRewriteViewId(id);
+        if (eligible.length === 1) {
+          setExpandedIds((previous) => previous.includes(id) ? previous : [...previous, id]);
+        }
       } catch {
         if (!rewriteGuardRef.current.isCurrent(token)) break;
         const entry = entriesRef.current.find((e) => e.item.id === id);
@@ -500,6 +1025,8 @@ export default function Home() {
           done += 1;
           continue;
         }
+        // SOL-003: per-file failure isolation — one failing file never
+        // aborts the remaining eligible files.
         setRewrites((previous) => ({
           ...previous,
           [id]: {
@@ -529,29 +1056,89 @@ export default function Home() {
       : `Rewrite finished: ${done} file${done === 1 ? "" : "s"} processed. Cleaned outputs (if any) are preserved separately.`);
   };
 
-  const handleRewriteOne = (id: string) => {
-    setSelectedId(null);
-    setCleanViewId(null);
-    void startRewriteBatch([id]);
+  // ---- Phase 06: batch rewrite scope dialog ------------------------------
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchSource, setBatchSource] = useState<BatchRewriteSource>("profile");
+  const [batchProjectId, setBatchProjectId] = useState<string | null>(null);
+  /** SOL-009: one-off custom batch draft — dialog/run-local, never the
+   *  saved profile or a project. Preserved while switching sources. */
+  const [batchCustomDraft, setBatchCustomDraft] = useState<EditorDraft>(() => blankEditorDraft("update_selected"));
+  /** Snapshot of the resolved project for the current batch run. */
+  const batchProjectRef = useRef<ProjectRecord | null>(null);
+
+  /** Load one project's full record into the details cache (deduped). */
+  const ensureProjectDetails = (projectId: string) => {
+    if (!user || projectDetails[projectId]) return;
+    void (async () => {
+      try {
+        const record = await getProject(user.uid, projectId);
+        if (record) setProjectDetails((previous) => ({ ...previous, [projectId]: record }));
+      } catch {
+        setAnnouncement("The selected project could not be loaded.");
+      }
+    })();
   };
 
-  const handleRewriteSelected = () => {
-    const alive = new Set(entriesRef.current.map((e) => e.item.id));
-    setSelectedId(null);
-    setCleanViewId(null);
-    void startRewriteBatch(selection.filter((id) => alive.has(id)));
+  /** Per-kind counts for the dialog's honest scope summary (SOL-003). */
+  const batchSelectionCounts = useMemo(() => {
+    const counts = { image: 0, audio: 0, video: 0, other: 0 };
+    for (const id of selection) {
+      const entry = entries.find((item) => item.item.id === id);
+      if (!entry) continue;
+      if (entry.item.detected.mediaKind === "image") counts.image += 1;
+      else if (entry.item.detected.mediaKind === "audio") counts.audio += 1;
+      else if (entry.item.detected.mediaKind === "video") counts.video += 1;
+      else counts.other += 1;
+    }
+    return counts;
+  }, [entries, selection]);
+
+  const batchLockedReason = useMemo(() => {
+    // SOL-002: while auth restoration is unresolved, show a checking state —
+    // never a final denial. The authoritative fresh check re-runs at confirm.
+    if (!authReady) return null;
+    // Display state from the last-known policy (defaults until fetched).
+    const access = resolveFeatureAccess("batch_metadata_rewrite", entitlement, policyState);
+    return access.allowed ? null : access.reason;
+  }, [authReady, entitlement, policyState]);
+
+  const handleOpenRewrite = () => {
+    setActiveTool("metadata_geotag");
+    // SOL-002: refresh the display state at the moment the protected action
+    // is attempted — a revoke/expiry that happened while the page was open
+    // must be visible in the dialog, not just at confirm time.
+    void refreshPolicy({ force: true });
+    void refreshEntitlement();
+    const ids = selectedEligibleIds();
+    if (!user) {
+      setAnnouncement(ids.length >= 2
+        ? "Rewriting two or more files together is a Premium feature. Premium access is granted manually by the site administrator. Rewriting one file stays free — use Edit Metadata on any row."
+        : "Sign in on your profile page to apply a saved metadata profile. Guest removal actions remain available here.");
+      if (ids.length >= 2) {
+        setPremiumNotice("Rewriting two or more files together is a Premium feature. Premium access is granted manually by the site administrator. Rewriting one file stays free — use Edit Metadata on any row.");
+      }
+      return;
+    }
+    setBatchDialogOpen(true);
   };
 
-  const handleRewriteAll = () => {
-    setSelectedId(null);
-    setCleanViewId(null);
-    void startRewriteBatch(selectableIds(entriesRef.current));
+  const handleBatchRewriteConfirm = () => {
+    setBatchDialogOpen(false);
+    const ids = selectedEligibleIds();
+    // Explicit confirmation of scope: snapshot taken NOW. The custom draft
+    // (when selected) is snapshotted with it (SOL-009).
+    void startRewriteBatch(ids, {
+      source: batchSource,
+      projectId: batchSource === "project" ? batchProjectId : null,
+      customDraft: batchSource === "custom" ? batchCustomDraft : null,
+    });
   };
 
   const handleCancelRewrite = () => {
     rewriteGuardRef.current.cancel();
     setRewritingIds([]);
     setRewriteProgress(null);
+    setGeoPendingOp(null);
     setAnnouncement("Rewrite cancelled. Finished files keep their verified results.");
   };
 
@@ -564,7 +1151,7 @@ export default function Home() {
     setEntries(nextEntries);
     setSelection((previous) => [
       ...previous,
-      ...created.filter((entry) => entry.item.detected.mediaKind === "image").map((entry) => entry.item.id),
+      ...created.filter((entry) => entry.item.detected.mediaKind === "image" || entry.item.detected.mediaKind === "audio").map((entry) => entry.item.id),
     ]);
     setAnnouncement(
       `${created.length} file${created.length === 1 ? "" : "s"} added. ${nextEntries.length} in queue.`,
@@ -574,30 +1161,29 @@ export default function Home() {
     // usable instantly; labels correct themselves without implying support.
     void (async () => {
       const sources = new Map(created.map((entry) => [entry.item.id, entry.source]));
-      await Promise.all(
-        [...sources.entries()].map(async ([id, source]) => {
+      await mapWithConcurrency([...sources.entries()], 4, async ([id, source]) => {
           let sniff;
           try {
             sniff = await sniffEntryHead(source);
           } catch {
             return;
           }
-          if (!entriesRef.current.some((e) => e.item.id === id)) return;
+          if (runRef.current !== intakeRun || !entriesRef.current.some((e) => e.item.id === id)) return;
           const verifiedEntries = applyBinaryVerification(entriesRef.current, id, sniff);
           entriesRef.current = verifiedEntries;
           setEntries(verifiedEntries);
           const verified = verifiedEntries.find((entry) => entry.item.id === id);
           setSelection((previous) => {
-            if (verified?.item.detected.mediaKind === "image") {
+            if (verified?.item.detected.mediaKind === "image" || verified?.item.detected.mediaKind === "audio") {
               return previous.includes(id) ? previous : [...previous, id];
             }
             return previous.filter((selected) => selected !== id);
           });
-        }),
-      );
+          return undefined;
+        }, () => runRef.current === intakeRun);
       if (runRef.current === intakeRun) {
         const pendingIds = entriesRef.current
-          .filter((entry) => entry.item.detected.mediaKind === "image" && !resultsRef.current[entry.item.id])
+          .filter((entry) => (entry.item.detected.mediaKind === "image" || entry.item.detected.mediaKind === "audio") && !resultsRef.current[entry.item.id])
           .map((entry) => entry.item.id);
         if (pendingIds.length > 0) void inspectIds(pendingIds, false);
       }
@@ -631,9 +1217,25 @@ export default function Home() {
       delete next[id];
       return next;
     });
-    setSelectedId((previous) => (previous === id ? null : previous));
-    setCleanViewId((previous) => (previous === id ? null : previous));
-    setRewriteViewId((previous) => (previous === id ? null : previous));
+    setExpandedIds((previous) => previous.filter((expanded) => expanded !== id));
+    setEditorDrafts((previous) => {
+      if (!(id in previous)) return previous;
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    setGeoDrafts((previous) => {
+      if (!(id in previous)) return previous;
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    setGeoLastOp((previous) => {
+      if (!(id in previous)) return previous;
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
     setAnnouncement(
       target
         ? `${target.item.name} removed. ${nextEntries.length} in queue.`
@@ -666,9 +1268,13 @@ export default function Home() {
     setResults({});
     setCleaning({});
     setRewrites({});
-    setSelectedId(null);
-    setCleanViewId(null);
-    setRewriteViewId(null);
+    setExpandedIds([]);
+    setEditorDrafts({});
+    setEditorId(null);
+    setEditorProgress(null);
+    setEditorFromDetails(false);
+    setDetailsId(null);
+    setGeoPendingOp(null);
     setReportChoices(DEFAULT_REPORT_CHOICES);
     setReportBusy(null);
     setReportProgress(null);
@@ -712,16 +1318,13 @@ export default function Home() {
       ids.forEach((id) => delete next[id]);
       return next;
     });
-    setSelectedId((previous) => previous && ids.has(previous) ? null : previous);
-    setCleanViewId((previous) => previous && ids.has(previous) ? null : previous);
-    setRewriteViewId((previous) => previous && ids.has(previous) ? null : previous);
+    setExpandedIds((previous) => previous.filter((expanded) => !ids.has(expanded)));
+    setEditorDrafts((previous) => {
+      const next = { ...previous };
+      for (const id of ids) delete next[id];
+      return next;
+    });
     setAnnouncement(`${ids.size} selected file${ids.size === 1 ? "" : "s"} removed.`);
-  };
-  const toggleCleaningTarget = (target: CleaningTarget) => {
-    resetExportStatus();
-    setCleaningTargets((previous) => previous.includes(target)
-      ? previous.filter((item) => item !== target)
-      : [...previous, target]);
   };
   const togglePartial = (id: string) => {
     resetExportStatus();
@@ -742,19 +1345,17 @@ export default function Home() {
     if (cleaningIds.includes(id)) return "cleaning";
     return cleaning[id]?.status;
   };
-  const hasCleaningResultFor = (id: string) => id in cleaning;
   const rewriteOf = (id: string): RewriteStatus | "rewriting" | undefined => {
     if (rewritingIds.includes(id)) return "rewriting";
     return rewrites[id]?.status;
   };
-  const hasRewriteResultFor = (id: string) => id in rewrites;
   const zipRunning = zip.phase === "archiving";
   const rewriting = rewritingIds.length > 0;
   const busy = inspectingIds.length > 0 || cleaningIds.length > 0 || batchRunning || rewriting || zipRunning || reportBusy !== null;
   const cleanableOf = (id: string) =>
-    entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind === "image" &&
+    (entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind === "image" ||
+      entriesRef.current.find((e) => e.item.id === id)?.item.detected.mediaKind === "audio") &&
     entries.some((e) => e.item.id === id);
-  const selectedOf = (id: string) => selection.includes(id);
   const partialOptedInOf = (id: string) => includeAllPartials || partialIncluded.includes(id);
 
   const batchCounts: BatchCounts = emptyBatchCounts();
@@ -782,16 +1383,16 @@ export default function Home() {
   // Failures, unsupported, unverified and videos are never eligible.
   // When a verified rewrite exists it takes precedence for the archive
   // (rewritten bytes); the cleaned output stays separately downloadable.
-  const outputFor = (id: string): { blob: Blob; name: string } | null => {
+  const outputFor = (id: string): { blob: Blob; name: string; kind: "cleaned" | "rewritten" } | null => {
     const rewrite = rewrites[id];
     if (rewrite && rewrite.output && rewrite.outputName && isRewriteDownloadable(rewrite.status)) {
       if (rewrite.status === "partially_rewritten" && !partialOptedInOf(id)) return null;
-      return { blob: rewrite.output, name: rewrite.outputName };
+      return { blob: rewrite.output, name: rewrite.outputName, kind: "rewritten" };
     }
     const result = cleaning[id];
     if (!result || !result.output || !result.outputName) return null;
-    if (result.status === "verified_clean" || result.status === "unchanged_no_target_tags") return { blob: result.output, name: result.outputName };
-    if (result.status === "partially_cleaned" && partialOptedInOf(id)) return { blob: result.output, name: result.outputName };
+    if (result.status === "verified_clean" || result.status === "unchanged_no_target_tags") return { blob: result.output, name: result.outputName, kind: "cleaned" };
+    if (result.status === "partially_cleaned" && partialOptedInOf(id)) return { blob: result.output, name: result.outputName, kind: "cleaned" };
     return null;
   };
   const eligibleEntries = entries.filter((entry) => outputFor(entry.item.id) !== null);
@@ -903,7 +1504,7 @@ export default function Home() {
         });
         if (!isZipActive()) return;
         setZip({ phase: "ready", filesDone: totalEntries, filesTotal: totalEntries, bytesWritten: estimated, archiveName, archiveBytes: 0, entryCount: totalEntries });
-        setAnnouncement(`ZIP saved to disk: ${archiveName} with ${mapping.length} images${reportSources.length > 0 ? ` + ${reportSources.length} reports` : ""}.`);
+        setAnnouncement(`ZIP saved to disk: ${archiveName} with ${mapping.length} verified files${reportSources.length > 0 ? ` + ${reportSources.length} reports` : ""}.`);
         return;
       }
       bytes = await buildZipArchive(sources, {
@@ -917,7 +1518,7 @@ export default function Home() {
       if (!isZipActive()) return;
       downloadNamedBlob(bytes, archiveName, "application/zip");
       setZip({ phase: "ready", filesDone: totalEntries, filesTotal: totalEntries, bytesWritten: bytes.length, archiveName, archiveBytes: bytes.length, entryCount: totalEntries });
-      setAnnouncement(`ZIP ready: ${archiveName} with ${mapping.length} verified images${reportSources.length > 0 ? ` + ${reportSources.length} reports` : ""}. Download started.`);
+      setAnnouncement(`ZIP ready: ${archiveName} with ${mapping.length} verified files${reportSources.length > 0 ? ` + ${reportSources.length} reports` : ""}. Download started.`);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         setZip({ phase: "cancelled", filesDone: 0, filesTotal: mapping.length, bytesWritten: 0, archiveName });
@@ -1056,215 +1657,224 @@ export default function Home() {
     setReportProgress(null);
     setAnnouncement("Report generation cancelled. Cleaned outputs are unaffected.");
   };
-  const selected = selectedId
-    ? entries.find((entry) => entry.item.id === selectedId) ?? null
-    : null;
-  const selectedResult = selectedId ? results[selectedId] ?? null : null;
-  const cleanView = cleanViewId ? cleaning[cleanViewId] ?? null : null;
-  const cleanViewAlive = cleanViewId
-    ? entries.some((entry) => entry.item.id === cleanViewId)
-    : false;
-  const rewriteView = rewriteViewId ? rewrites[rewriteViewId] ?? null : null;
-  const rewriteViewAlive = rewriteViewId
-    ? entries.some((entry) => entry.item.id === rewriteViewId)
-    : false;
-  const rewriteEnabled = user !== null && !isSuspended;
-  const toggleRewriteField = (field: ProfileField) => {
-    resetExportStatus();
-    setRewriteFields((previous) => previous.includes(field)
-      ? previous.filter((item) => item !== field)
-      : [...previous, field]);
-  };
 
   return (
     <>
       <a href="#main-content" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white focus:translate-y-0">
         Skip to main content
       </a>
-      <Header />
-      <main id="main-content" className="pb-12">
-        <Hero />
-        <div id="upload" className="mx-auto max-w-7xl scroll-mt-24 px-4 sm:px-6 lg:px-8">
-          <div className="surface-card rounded-[1.75rem] p-4 sm:p-7 lg:p-8">
-            <UploadPanel onFiles={handleFiles} />
-            <QueueList
-              entries={entries}
-              announcement={announcement}
-              inspectionOf={inspectionOf}
-              inspectionResultOf={(id) => results[id]}
-              cleaningOf={cleaningOf}
-              hasCleaningResultFor={hasCleaningResultFor}
-              rewriteOf={rewriteOf}
-              hasRewriteResultFor={hasRewriteResultFor}
-              rewriteEnabled={rewriteEnabled}
-              inspectingCount={inspectingIds.length}
-              cleaningCount={cleaningIds.length + rewritingIds.length}
-              busy={busy}
-              batchRunning={batchRunning}
-              cleanableOf={cleanableOf}
-              selectedOf={selectedOf}
-              selectedCount={selection.length}
-              selectedCleanableCount={selection.filter((id) => entries.some((entry) => entry.item.id === id && entry.item.detected.mediaKind === "image")).length}
-              eligibleInputs={selectableIds(entries).length}
-              cleaningTargets={cleaningTargets}
-              partialOptedInOf={(id) => includeAllPartials || partialIncluded.includes(id)}
-              onToggleSelect={toggleSelect}
-              onToggleSelectAll={toggleSelectAll}
-              onToggleCleaningTarget={toggleCleaningTarget}
-              onRemoveSelected={handleRemoveSelected}
-              onTogglePartial={togglePartial}
-              onRetry={handleRetryOne}
-              onRemove={handleRemove}
-              onClear={handleClear}
-              onInspect={handleInspectOne}
-              onShow={(id) => {
-                setCleanViewId(null);
-                setRewriteViewId(null);
-                setSelectedId(id);
-              }}
-              onClean={(id) => void handleCleanOne(id)}
-              onShowCleaning={(id) => {
-                setSelectedId(null);
-                setRewriteViewId(null);
-                setCleanViewId(id);
-              }}
-              onRewrite={(id) => void handleRewriteOne(id)}
-              onShowRewrite={(id) => {
-                setSelectedId(null);
-                setCleanViewId(null);
-                setRewriteViewId(id);
-              }}
-              onCleanAll={handleCleanAll}
-              onCleanSelected={handleCleanSelected}
-              onCancelInspections={handleCancelInspections}
-              onCancelCleaning={() => {
-                handleCancelCleaning();
-                handleCancelRewrite();
-              }}
-            />
-          </div>
-
-          <AuthPanel
-            user={user}
-            superadmin={isSuperadmin}
-            suspended={isSuspended}
-            onUser={(next) => {
-              setUser(next);
-              if (!next) {
-                setProfile(blankProfile());
-                setRewriteViewId(null);
-                setIsSuperadmin(false);
-                setIsSuspended(false);
-              }
+      <Header uploadLabel={entries.length > 0 ? "Add more files" : undefined} />
+      <main id="main-content" className="pb-4">
+        {entries.length === 0 ? (
+          <BeforeUploadHome
+            activeTool={activeTool}
+            onToolChange={(tool) => {
+              setActiveTool(tool);
+              setAnnouncement(tool === "ai_metadata"
+                ? "AI Metadata tool selected. Inspection prioritizes qualified AI evidence and Content Credentials."
+                : "Metadata & Geotag tool selected. Inspection prioritizes EXIF, GPS, XMP and IPTC.");
             }}
-            onNotice={(message) => setAnnouncement(message)}
+            onFiles={handleFiles}
+            rewriteProgress={rewriteProgress}
           />
-          <ProfilePanel
-            user={user}
-            profile={profile}
-            suspended={isSuspended}
-            onProfile={(next) => {
+        ) : (
+          <AfterUploadWorkspace
+            entries={entries}
+            activeTool={activeTool}
+            onToolChange={(tool) => {
+              setActiveTool(tool);
+              setAnnouncement(tool === "ai_metadata"
+                ? "AI Metadata tool selected. Inspection prioritizes qualified AI evidence and Content Credentials."
+                : "Metadata & Geotag tool selected. Inspection prioritizes EXIF, GPS, XMP and IPTC.");
+            }}
+            announcement={announcement}
+            results={results}
+            inspectingIds={inspectingIds}
+            inspectionOf={inspectionOf}
+            inspectionResultOf={(id) => results[id]}
+            cleaningOf={cleaningOf}
+            cleaningResultOf={(id) => cleaning[id]}
+            rewriteOf={rewriteOf}
+            rewriteResultOf={(id) => rewrites[id]}
+            outputOf={outputFor}
+            inspectingCount={inspectingIds.length}
+            processingCount={cleaningIds.length + rewritingIds.length + (batchRunning ? 1 : 0)}
+            busy={busy}
+            cleanableOf={cleanableOf}
+            selectedOf={(id) => selection.includes(id)}
+            expandedOf={(id) => expandedIds.includes(id)}
+            selectedCount={selection.length}
+            selectedCleanableCount={selection.filter((id) => entries.some((entry) => entry.item.id === id && (entry.item.detected.mediaKind === "image" || entry.item.detected.mediaKind === "audio"))).length}
+            outputCount={eligibleEntries.length}
+            partialOptedInOf={(id) => includeAllPartials || partialIncluded.includes(id)}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            onToggleExpanded={(id) => setExpandedIds((previous) => previous.includes(id)
+              ? previous.filter((expanded) => expanded !== id)
+              : [...previous, id])}
+            onOpenDetails={(id) => setDetailsId(id)}
+            onOpenEditor={handleOpenEditor}
+            onFiles={handleFiles}
+            onRemoveSelected={handleRemoveSelected}
+            onTogglePartial={togglePartial}
+            onRetry={handleRetryOne}
+            onRemove={handleRemove}
+            onClear={handleClear}
+            onInspect={handleInspectOne}
+            onDownloadNotice={(name) => setAnnouncement(`Download started: ${name}.`)}
+            onCancelInspections={handleCancelInspections}
+            onCancelProcessing={() => {
+              handleCancelCleaning();
+              handleCancelBatch();
+              handleCancelRewrite();
+            }}
+            onRemoveMetadata={handleRemoveMetadata}
+            onRemoveAiMetadata={handleRemoveAiMetadata}
+            onOpenRewrite={handleOpenRewrite}
+            premiumNotice={premiumNotice}
+            onDismissPremiumNotice={() => setPremiumNotice(null)}
+            batchRunning={batchRunning}
+            batchDone={batch?.done ?? 0}
+            batchTotal={batch?.total ?? 0}
+            batchCurrentName={batch?.current ?? null}
+            batchCounts={batchCounts}
+            zip={zip}
+            partialExcluded={partialExcluded}
+            includeAllPartials={includeAllPartials}
+            reportFailure={zipReportFailed}
+            failedCount={failedIds.length}
+            onCancelBatch={handleCancelBatch}
+            onCancelZip={handleCancelZip}
+            onRetryFailed={handleRetryFailed}
+            onTogglePartials={() => {
               resetExportStatus();
-              setProfile(next);
+              setIncludeAllPartials((previous) => !previous);
             }}
-            onNotice={(message) => setAnnouncement(message)}
+            onDownloadZip={() => void handleDownloadZip(false)}
+            onDownloadZipBare={() => void handleDownloadZip(true)}
+            reportChoices={reportChoices}
+            reportGenerating={reportBusy}
+            reportProgress={reportProgress}
+            reportError={reportError}
+            reportDisabled={busy && reportBusy === null}
+            onReportChoices={handleReportChoices}
+            onDownloadCsv={() => void handleDownloadCsv()}
+            onDownloadTags={() => void handleDownloadTags()}
+            onDownloadPdf={() => void handleDownloadPdf()}
+            onCancelReport={reportBusy === "zip" ? handleCancelZip : handleCancelReport}
+            rewriteProgress={rewriteProgress}
           />
-          <RewritePanel
-            user={user}
-            profileValues={profile as unknown as Record<string, unknown>}
-            mode={rewriteMode}
-            selectedFields={rewriteFields}
-            eligibleCount={entries.filter((e) => e.item.detected.mediaKind === "image").length}
-            selectedCount={selection.filter((id) => entries.some((e) => e.item.id === id && e.item.detected.mediaKind === "image")).length}
-            applying={rewriting}
-            progress={rewriteProgress}
-            onMode={(next) => {
-              resetExportStatus();
-              setRewriteMode(next);
-            }}
-            onToggleField={toggleRewriteField}
-            onApplySelected={() => void handleRewriteSelected()}
-            onApplyAll={() => void handleRewriteAll()}
-            onCancel={handleCancelRewrite}
-          />
-
-          {(selected && selectedResult) || (cleanView && cleanViewAlive) || (rewriteView && rewriteViewAlive) ? (
-            <div ref={resultRegionRef} tabIndex={-1} className="scroll-mt-24">
-              {selected && selectedResult ? (
-                <InspectorPanel result={selectedResult} onClose={() => setSelectedId(null)} />
-              ) : null}
-              {cleanView && cleanViewAlive ? (
-                <BeforeAfterPanel
-                  result={cleanView}
-                  onClose={() => setCleanViewId(null)}
-                  onDownload={(finished) => {
-                    setAnnouncement(`Download started: ${finished.outputName ?? finished.inputName}.`);
-                  }}
-                />
-              ) : null}
-              {rewriteView && rewriteViewAlive ? (
-                <RewriteResultPanel
-                  result={rewriteView}
-                  onClose={() => setRewriteViewId(null)}
-                  onDownload={(finished) => {
-                    setAnnouncement(`Download started: ${finished.outputName ?? finished.inputName}.`);
-                  }}
-                />
-              ) : null}
-            </div>
-          ) : null}
-
-          {entries.length > 0 ? (
-            <>
-              <BatchPanel
-                disabled={busy && !batchRunning && !zipRunning}
-                running={batchRunning}
-                done={batch?.done ?? 0}
-                total={batch?.total ?? 0}
-                currentName={batch?.current ?? null}
-                counts={batchCounts}
-                zip={zip}
-                partialExcluded={partialExcluded}
-                includePartials={includeAllPartials}
-                zipEligible={eligibleEntries.length}
-                onCancel={handleCancelBatch}
-                onCancelZip={handleCancelZip}
-                onRetryFailed={handleRetryFailed}
-                onTogglePartials={() => {
-                  resetExportStatus();
-                  setIncludeAllPartials((previous) => !previous);
-                }}
-                onDownloadZip={() => void handleDownloadZip(false)}
-                onDownloadZipBare={() => void handleDownloadZip(true)}
-                failedCount={failedIds.length}
-                reportFailure={zipReportFailed}
-              />
-              <ReportsPanel
-                format={reportChoices.format}
-                detail={reportChoices.detail}
-                includeOriginalValues={reportChoices.includeOriginalValues}
-                generating={reportBusy}
-                progress={reportProgress}
-                error={reportError}
-                fileCount={entries.length}
-                disabled={busy && reportBusy === null}
-                onChoices={handleReportChoices}
-                onDownloadCsv={() => void handleDownloadCsv()}
-                onDownloadTags={() => void handleDownloadTags()}
-                onDownloadPdf={() => void handleDownloadPdf()}
-                onCancel={reportBusy === "zip" ? handleCancelZip : handleCancelReport}
-              />
-            </>
-          ) : null}
-        </div>
-        <div id="formats" className="mx-auto max-w-7xl scroll-mt-24 px-4 sm:px-6 lg:px-8">
-          <FormatsPanel />
-        </div>
-        <div id="privacy" className="mx-auto max-w-7xl scroll-mt-24 px-4 sm:px-6 lg:px-8">
-          <FuturePanel />
-        </div>
+        )}
       </main>
       <Footer />
+      {/* Screen 05 — image details dialog (portaled to document.body). */}
+      <ImageDetailsModal
+        entry={detailsEntry}
+        navPosition={detailsNavIndex >= 0 ? { index: detailsNavIndex, total: detailsNavList.length } : null}
+        inspectionResult={detailsEntry ? results[detailsEntry.item.id] : undefined}
+        inspectionState={detailsEntry ? inspectionOf(detailsEntry.item.id) : undefined}
+        cleaningState={detailsEntry ? cleaningOf(detailsEntry.item.id) : undefined}
+        cleaningResult={detailsEntry ? cleaning[detailsEntry.item.id] : undefined}
+        rewriteState={detailsEntry ? rewriteOf(detailsEntry.item.id) : undefined}
+        rewriteResult={detailsEntry ? rewrites[detailsEntry.item.id] : undefined}
+        downloadOutput={detailsEntry ? outputFor(detailsEntry.item.id) : null}
+        activeTool={activeTool}
+        busy={busy}
+        onStep={(delta) => {
+          if (detailsNavIndex === -1) return;
+          const next = detailsNavList[detailsNavIndex + delta];
+          if (next) setDetailsId(next.item.id);
+        }}
+        onDownloadNotice={(name) => setAnnouncement(`Download started: ${name}.`)}
+        onRemoveForFile={handleRemoveFromDetails}
+        onEditForImage={handleOpenEditorFromDetails}
+        onClose={() => setDetailsId(null)}
+      />
+      {/* Screen 06 — single-image edit metadata dialog (portaled). */}
+      <EditMetadataModal
+        entry={editorEntry}
+        draft={editorDraftForOpen}
+        inspectionResult={editorEntry ? results[editorEntry.item.id] : undefined}
+        inspectionState={editorEntry ? inspectionOf(editorEntry.item.id) : undefined}
+        savedProfile={profile}
+        signedIn={Boolean(user)}
+        result={editorEntry ? rewrites[editorEntry.item.id] : undefined}
+        progress={editorProgress}
+        busy={editorId ? rewritingIds.includes(editorId) : false}
+        onFieldChange={(field, value) => {
+          if (editorId) updateEditorDraft(editorId, (draft) => ({ ...draft, values: { ...draft.values, [field]: value } }));
+        }}
+        onModeChange={(mode) => {
+          if (editorId) updateEditorDraft(editorId, (draft) => ({ ...draft, mode }));
+        }}
+        onSourceChange={(source: EditorSource) => {
+          if (editorId) updateEditorDraft(editorId, (draft) => ({ ...draft, source }));
+        }}
+        projects={projects}
+        projectDetails={projectDetails}
+        onProjectSelect={handleProjectSelect}
+        onSaveDraft={(draft) => {
+          if (editorId) setEditorDrafts((previous) => ({ ...previous, [editorId]: draft }));
+        }}
+        onDiscardDraft={() => {
+          if (editorId) updateEditorDraft(editorId, () => blankEditorDraft(readRewriteSettings().mode));
+        }}
+        onCopyProfileIntoDraft={() => {
+          if (editorId) handleEditorCopyProfile(editorId);
+        }}
+        onApply={handleEditorApply}
+        geoDraft={editorEntry ? geoDrafts[editorEntry.item.id] ?? blankGeoDraft() : blankGeoDraft()}
+        geoPendingOp={geoPendingOp}
+        onGeoDraftChange={(draft) => {
+          if (editorId) setGeoDrafts((previous) => ({ ...previous, [editorId]: draft }));
+        }}
+        geoLastOperation={editorEntry ? geoLastOp[editorEntry.item.id] ?? null : null}
+        selectedImageCount={editorEntry ? bulkGeoSnapshot(editorEntry.item.id, selection, entries).length : 0}
+        onGeoApply={handleGeoApply}
+        onGeoApplyBulk={handleGeoApplyBulk}
+        onAnnounce={setAnnouncement}
+        onViewDetails={handleEditorViewDetails}
+        onDownloadNotice={(name) => setAnnouncement(`Download started: ${name}.`)}
+        onClose={handleEditorClose}
+      />
+
+      {/* Phase 06: explicit batch-rewrite scope confirmation */}
+      <BatchRewriteDialog
+        open={batchDialogOpen}
+        imageCount={batchSelectionCounts.image}
+        audioCount={batchSelectionCounts.audio}
+        videoCount={batchSelectionCounts.video}
+        otherCount={batchSelectionCounts.other}
+        totalBytes={selection.reduce((sum, id) => sum + (entries.find((entry) => entry.item.id === id)?.source.size ?? 0), 0)}
+        mode={rewriteMode}
+        savedProfile={profile}
+        projects={projects}
+        projectDetails={projectDetails}
+        source={batchSource}
+        projectId={batchProjectId}
+        customDraft={batchCustomDraft}
+        onCustomChange={setBatchCustomDraft}
+        accessChecking={!authReady}
+        busy={rewritingIds.length > 0}
+        lockedReason={batchLockedReason}
+        onSourceChange={(source) => {
+          setBatchSource(source);
+          // Auto-selecting the first project must ALSO load its details —
+          // otherwise the scope preview stays empty and confirm stays
+          // disabled (SOL-011 e2e caught this).
+          if (source === "project" && !batchProjectId && projects.length > 0) {
+            const firstId = projects[0].projectId;
+            setBatchProjectId(firstId);
+            void ensureProjectDetails(firstId);
+          }
+        }}
+        onProjectChange={(projectId) => {
+          setBatchProjectId(projectId);
+          if (projectId) void ensureProjectDetails(projectId);
+        }}
+        onConfirm={handleBatchRewriteConfirm}
+        onCancel={() => setBatchDialogOpen(false)}
+      />
     </>
   );
 }

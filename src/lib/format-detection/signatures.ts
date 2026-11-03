@@ -17,6 +17,7 @@ export type SniffedKind =
   | "heif-generic"
   | "heif-sequence"
   | "mp4-video"
+  | "mp3-audio"
   | "empty"
   | "unknown"
   | "unreadable";
@@ -59,6 +60,8 @@ export function canonicalExtensionForSniffedKind(kind: SniffedKind): string {
       return "heic";
     case "mp4-video":
       return "mp4";
+    case "mp3-audio":
+      return "mp3";
     default:
       return "bin";
   }
@@ -99,6 +102,8 @@ function expectedKindForExtension(extension: string): SniffedKind | null {
     case "mov":
     case "webm":
       return "mp4-video";
+    case "mp3":
+      return "mp3-audio";
     default:
       return null;
   }
@@ -261,7 +266,20 @@ export function sniffImageBytes(
       scanWindow.byteLength,
     );
     const n = scanWindow.length;
-    if (n >= 3 && view.getUint8(0) === 0xff && view.getUint8(1) === 0xd8 && view.getUint8(2) === 0xff) {
+    // MP3 (Phase 07): ID3v2 header ("ID3" + major 2–4) or a valid MPEG
+    // Layer III sync frame header. A valid ID3 header alone does not prove
+    // playable audio — the full MPEG frame walk happens in the audio probe.
+    if (n >= 10
+      && view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33
+      && view.getUint8(3) >= 2 && view.getUint8(3) <= 4) {
+      kind = "mp3-audio";
+    } else if (n >= 4
+      && view.getUint8(0) === 0xff && (view.getUint8(1) & 0xe0) === 0xe0
+      && ((view.getUint8(1) >> 3) & 0x03) === 3 && ((view.getUint8(1) >> 1) & 0x03) === 1
+      && ((view.getUint8(2) >> 4) & 0x0f) !== 0 && ((view.getUint8(2) >> 4) & 0x0f) !== 15
+      && ((view.getUint8(2) >> 2) & 0x03) !== 3) {
+      kind = "mp3-audio";
+    } else if (n >= 3 && view.getUint8(0) === 0xff && view.getUint8(1) === 0xd8 && view.getUint8(2) === 0xff) {
       kind = "jpeg";
       // Defensive marker walk: plausible structure, bounded steps.
       let offset = 2;

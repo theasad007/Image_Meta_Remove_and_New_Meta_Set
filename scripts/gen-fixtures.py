@@ -303,6 +303,37 @@ def make_jpegs():
     open(os.path.join(ROOT, "jpeg-truncated.jpg"), "wb").write(
         src[:soi_end - 25])
 
+    # 8. GPS in EXIF + coordinate mirrors in XMP (Screen 09 removal fixture:
+    #    EXIF GPS strips cleanly; XMP/IPTC-extension evidence retained + disclosed).
+    p = os.path.join(ROOT, "jpeg-gps-xmp.jpg")
+    base_jpeg(p, (160, 160, 80))
+    tiff = build_tiff(
+        photo_ifd0("TestCam", "TestCam Model X", "PhaseTwoTest/? 1.0",
+                   "Phase Two Test Creator", "Synthetic mixed-location photo",
+                   "Phase Two Test Rights 2026", DT, orientation=6),
+        photo_exif(DT), gps_ifd(-34.603700, -58.381600, -5.0))
+    xmp_mixed = xmp_packet(
+        b'<rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/">\n'
+        b'  <exif:GPSLatitude>34,36.2220S</exif:GPSLatitude>\n'
+        b'  <exif:GPSLongitude>58,22.8960W</exif:GPSLongitude>\n'
+        b'  <exif:GPSAltitude>5/1</exif:GPSAltitude>\n'
+        b'</rdf:Description>\n'
+        b'<rdf:Description rdf:about="" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">\n'
+        b'  <photoshop:Latitude>34,36.222</photoshop:Latitude>\n'
+        b'  <photoshop:Longitude>58,22.896</photoshop:Longitude>\n'
+        b'</rdf:Description>\n'
+        b'<rdf:Description rdf:about="" xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/">\n'
+        b'  <Iptc4xmpExt:LocationCreated>\n'
+        b'    <rdf:Bag><rdf:li xml:lang="x-default">Southern hemisphere test location</rdf:li></rdf:Bag>\n'
+        b'  </Iptc4xmpExt:LocationCreated>\n'
+        b'</rdf:Description>')
+    raw = open(p, "rb").read()
+    open(p, "wb").write(splice_after_soi(raw, [
+        jpeg_segment(0xE1, b"Exif\x00\x00" + tiff),
+        jpeg_segment(0xE1, b"http://ns.adobe.com/xap/1.0/\x00" + xmp_mixed),
+    ]))
+    print("wrote jpeg-gps-xmp.jpg (gps -34.6037 -58.3816 + xmp mirrors + iptcExt)")
+
 # ---------------------------------------------------------------- PNG
 
 
@@ -660,6 +691,28 @@ def make_phase3_fixtures():
     i = src.find(b"IDAT")
     bad = src[:i - 4] + struct.pack(">I", 0xDEADBEEF) + src[i:]
     open(os.path.join(ROOT, "png-bad-crc.png"), "wb").write(bad)
+
+    # Screen 09: PNG whose eXIf chunk carries a real GPS IFD (removal + update target).
+    p = os.path.join(ROOT, "png-gps.png")
+    img = Image.new("RGB", (16, 12), (80, 60, 200))
+    img.save(p, "PNG")
+    raw = open(p, "rb").read()
+    tiff = build_tiff(
+        [(274, T_SHORT, [1]), (34853, T_LONG, SUBIFD(1))], None, gps_ifd(-34.603700, -58.381600, -5.0))
+    out2 = bytearray(raw[:8])
+    pos = 8
+    while pos < len(raw):
+        (length,) = struct.unpack(">I", raw[pos:pos + 4])
+        ctype = raw[pos + 4:pos + 8]
+        end = pos + 12 + length
+        if ctype == b"IDAT":
+            out2 += png_chunk(b"eXIf", tiff)
+        out2 += raw[pos:end]
+        pos = end
+        if ctype == b"IEND":
+            break
+    open(p, "wb").write(bytes(out2))
+    print("wrote png-gps.png (eXIf GPS IFD -34.6037 -58.3816 alt -5)")
 
     # Lossless WebP with alpha + metadata.
     from PIL import Image as _Image

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fixture, upload } from "./helpers";
+import { closeDetailsModal, fixture, upload } from "./helpers";
 
 /** Keyboard operability, status announcements, and small-viewport layout. */
 test.beforeEach(async ({ page }) => {
@@ -27,7 +27,34 @@ test("mobile viewport: no horizontal overflow, actions reachable", async ({ page
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: "View details" })).toBeVisible({ timeout: 120000 });
   await page.getByRole("button", { name: "View details" }).click();
-  await expect(page.locator('[data-testid="inspector-panel"]')).toBeVisible({ timeout: 60000 });
+  // Screen 05: the image-details dialog is full-height on phone and its
+  // inspection tabs scroll within their own container only.
+  const dialog = page.locator('[data-testid="details-modal"]');
+  await expect(dialog).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('[data-testid="details-preview"]')).toBeVisible();
+  const tablist = page.locator('[data-testid="details-tabs"]');
+  await expect(tablist).toBeVisible();
   const overflowAfter = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflowAfter).toBeLessThanOrEqual(1);
+  await closeDetailsModal(page);
+  const overflowClosed = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflowClosed).toBeLessThanOrEqual(1);
+});
+
+test("mobile navigation exposes workspace, profile, support and privacy links", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Compact navigation is only visible at the mobile breakpoint.");
+  const menu = page.locator('summary[aria-label="Open navigation"]');
+  await expect(menu).toBeVisible();
+  await menu.click();
+  const links = page.locator('details > div').last();
+  await expect(links.getByRole("link", { name: "Workspace" })).toBeVisible();
+  await expect(links.getByRole("link", { name: "Profile" })).toBeVisible();
+  await expect(links.getByRole("link", { name: "File support" })).toBeVisible();
+  await expect(links.getByRole("link", { name: "Privacy" })).toBeVisible();
+
+  await links.getByRole("link", { name: "Profile" }).click();
+  await expect(page).toHaveURL(/\/account\/profile\/?$/);
+  await expect(page.getByRole("heading", { name: "Your metadata profile" })).toBeVisible();
+  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(profileOverflow).toBeLessThanOrEqual(1);
 });

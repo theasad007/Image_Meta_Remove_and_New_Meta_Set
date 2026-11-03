@@ -15,10 +15,14 @@ export default function BeforeAfterPanel({
   result,
   onClose,
   onDownload,
+  embedded = false,
+  headingId = "cleaning-heading",
 }: {
   result: FileCleaningResult;
-  onClose: () => void;
+  onClose?: () => void;
   onDownload: (result: FileCleaningResult) => void;
+  embedded?: boolean;
+  headingId?: string;
 }) {
   const downloadable = isDownloadableStatus(result.status) && result.output !== undefined;
 
@@ -47,25 +51,36 @@ export default function BeforeAfterPanel({
 
   return (
     <section
-      aria-labelledby="cleaning-heading"
+      aria-labelledby={headingId}
       data-testid="before-after-panel"
-      className="surface-card mt-6 rounded-[1.5rem] p-4 sm:p-6"
+      className={embedded
+        ? "rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
+        : "surface-card mt-6 rounded-[1.5rem] p-4 sm:p-6"}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id="cleaning-heading" className="text-base font-semibold">
+        <h2 id={headingId} className="text-base font-semibold">
           Cleaning result: <span className="break-all">{result.inputName}</span>
         </h2>
         <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-white">
           {result.status.replace(/_/g, " ")}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn-secondary ml-auto !min-h-9 !px-3 !py-1.5"
-        >
-          Close
-        </button>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary ml-auto !min-h-9 !px-3 !py-1.5"
+          >
+            Close
+          </button>
+        ) : null}
       </div>
+
+      {result.policy.targets?.length === 1 && result.policy.targets[0] === "ai_markers" ? (
+        <p className="mt-2 rounded-lg border border-violet-200 bg-violet-50 p-2 text-xs font-medium text-violet-900">
+          AI-focused scope: the cleaner targets qualified AI metadata. Where a format cannot safely remove one tag,
+          the containing EXIF, XMP, IPTC or text block may also be removed; the evidence below records the actual result.
+        </p>
+      ) : null}
 
       <p className="mt-2 text-xs text-slate-600">
         Format preserved: <strong>{result.detectedFormat}</strong>

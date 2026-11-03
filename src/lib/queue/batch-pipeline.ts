@@ -2,6 +2,7 @@ import type { ImageInspectionResult } from "../../types/inspection";
 import type { QueueEntry } from "../../types/media";
 import { SNIFF_WINDOW_BYTES, canonicalExtensionForSniffedKind, sniffImageBytes } from "../format-detection/signatures";
 import { inspectImage } from "../metadata/inspect/inspect";
+import { inspectAudio } from "../metadata/audio/inspect-audio";
 import type { CleaningPolicy, FileCleaningResult } from "../metadata/clean/types";
 import { PRIVACY_SAFE_DEFAULT } from "../metadata/clean/types";
 import { DEFAULT_VERIFY_MAX_BYTES, verifyCleanedImage } from "../metadata/verify/verify";
@@ -84,7 +85,10 @@ export async function processBatchFile(
   if (!before) {
     try {
       deps.onStage?.("inspect");
-      before = await inspectImage(id, source, entry.item.name);
+      // Phase 11: audio rows inspect through the MP3 inspector.
+      before = entry.item.detected.mediaKind === "audio"
+        ? await inspectAudio(id, source, entry.item.name)
+        : await inspectImage(id, source, entry.item.name);
     } catch {
       return fail("failed", ["Inspection crashed unexpectedly."], { detectedFormat: sniff.kind });
     }

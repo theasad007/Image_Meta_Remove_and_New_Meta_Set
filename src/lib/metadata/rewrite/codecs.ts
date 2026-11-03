@@ -240,6 +240,299 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
+// ---------------------------------------------------------------- GPS IFD (Screen 09)
+
+/** TIFF tag holding the LONG pointer to the GPS IFD (a sub-IFD). */
+export const TIFF_TAG_GPS_INFO = 34853;
+
+export interface ParsedGpsIfd {
+  /** Offset of the GPS IFD table inside the TIFF block. */
+  start: number;
+  /** Exclusive end of the table plus its referenced data area. */
+  end: number;
+  entries: TiffEntry[];
+}
+
+/**
+ * Dereference the GPS IFD out of an existing TIFF (Screen 09). The IFD is
+ * a bare table without the 8-byte TIFF header, so a dedicated parser maps
+ * its entries and the contiguous data area it owns. Values that point
+ * outside the table's forward window are dereferenced to raw bytes like
+ * everywhere else in this codec.
+ */
+export function extractGpsIfd(parsed: ParsedTiff): ParsedGpsIfd | null {
+  const pointerEntry = parsed.entries.find((entry) => entry.tag === TIFF_TAG_GPS_INFO);
+  if (!pointerEntry || pointerEntry.value.length !== 4) return null;
+  const pointerView = new DataView(pointerEntry.value.buffer, pointerEntry.value.byteOffset, pointerEntry.value.byteLength);
+  const gpsStart = pointerView.getUint32(0, parsed.little);
+  if (gpsStart < 8 || gpsStart >= parsed.raw.length) return null;
+  const raw = parsed.raw;
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const u16 = (off: number): number | null => (off + 2 <= raw.length ? view.getUint16(off, parsed.little) : null);
+  const u32 = (off: number): number | null => (off + 4 <= raw.length ? view.getUint32(off, parsed.little) : null);
+  const count = u16(gpsStart);
+  if (count === null || count > 128) return null;
+  const tableEnd = gpsStart + 2 + count * 12;
+  if (tableEnd + 4 > raw.length) return null;
+  const entries: TiffEntry[] = [];
+  let end = tableEnd + 4;
+  for (let i = 0; i < count; i += 1) {
+    const base = gpsStart + 2 + i * 12;
+    const tag = u16(base) ?? 0;
+    const type = u16(base + 2) ?? 0;
+    const num = u32(base + 4) ?? 0;
+    const per = TIFF_TYPE_SIZES[type] ?? 0;
+    if (per === 0 || num === 0 || num > 65536) return null;
+    const total = num * per;
+    if (total <= 4) {
+      entries.push({ tag, type, count: num, value: raw.slice(base + 8, base + 8 + total) });
+      continue;
+    }
+    const at = u32(base + 8);
+    if (at === null || at + total > raw.length) return null;
+    entries.push({ tag, type, count: num, value: raw.slice(at, at + total) });
+    if (at >= gpsStart) end = Math.max(end, at + total);
+  }
+  return { start: gpsStart, end, entries };
+}
+
+export type GpsTiffDirective =
+  | { op: "write"; values: TiffWriteValue[]; /** Emit GPSVersionId for a fresh IFD. */ version?: boolean }
+  | { op: "remove" };
+
+const GPS_TAG_VERSION = 0;
+
+/**
+ * Rebuild a TIFF with explicit GPS handling (Screen 09).
+ *
+ * Layout: header + IFD0(table+data) + [GPS IFD(table+data) when writing] +
+ * the tail preserved as TWO rigid chunks around the old GPS IFD region so
+ * the remaining sub-IFDs/thumbnails shift with per-chunk deltas (a single
+ * delta would break pointers that straddle the carve). Pointer tags and
+ * the next-IFD value are fixed up per chunk; a pointer landing inside the
+ * carved GPS region is layout corruption and refuses the rebuild.
+ *
+ * Everything regular `buildTiff` preserves stays preserved here; the only
+ * difference is that the GPS IFD is parsed out and rebuilt instead of
+ * riding along inside the tail. Removal drops the GPS IFD and its IFD0
+ * pointer entirely and is a no-op when the TIFF has no GPS IFD.
+ */
+export function buildTiffWithGps(
+  base: ParsedTiff | null,
+  writes: TiffWriteValue[],
+  gps: GpsTiffDirective,
+  little = true,
+): Uint8Array | null {
+  if (base === null && gps.op === "remove") return null;
+  const gpsIfd = base ? extractGpsIfd(base) : null;
+
+  interface IfdItem { tag: number; type: number; value: Uint8Array }
+  const ifd0 = new Map<number, IfdItem>();
+  const order: number[] = [];
+  if (base) {
+    for (const entry of base.entries) {
+      ifd0.set(entry.tag, { tag: entry.tag, type: entry.type, value: entry.value });
+      order.push(entry.tag);
+    }
+  }
+  for (const write of writes) {
+    const value = encodeTiffValue(little, write.type, write.values);
+    if (!value) return null;
+    if (!ifd0.has(write.tag)) order.push(write.tag);
+    ifd0.set(write.tag, { tag: write.tag, type: write.type, value });
+  }
+  if (gps.op === "remove") {
+    const at = order.indexOf(TIFF_TAG_GPS_INFO);
+    if (at >= 0) order.splice(at, 1);
+    ifd0.delete(TIFF_TAG_GPS_INFO);
+  } else if (!ifd0.has(TIFF_TAG_GPS_INFO)) {
+    // Add the GPS pointer whenever a write is requested and the IFD0 lacks
+    // one (fresh TIFFs and existing EXIF blocks without GPS alike) — an
+    // orphaned GPS IFD would be invisible to every reader.
+    order.push(TIFF_TAG_GPS_INFO);
+    ifd0.set(TIFF_TAG_GPS_INFO, { tag: TIFF_TAG_GPS_INFO, type: 4, value: new Uint8Array(4) });
+  }
+  if (order.length > 256) return null;
+
+  // GPS entries for a write: existing GPS tags survive, requests overlay.
+  const gpsEntries = new Map<number, IfdItem>();
+  let gpsOrder: number[] = [];
+  if (gps.op === "write") {
+    if (gpsIfd) {
+      for (const entry of gpsIfd.entries) {
+        gpsEntries.set(entry.tag, { tag: entry.tag, type: entry.type, value: entry.value });
+        gpsOrder.push(entry.tag);
+      }
+    }
+    const fresh = !gpsIfd;
+    for (const write of gps.values) {
+      const value = encodeTiffValue(little, write.type, write.values);
+      if (!value) return null;
+      if (!gpsEntries.has(write.tag)) gpsOrder.push(write.tag);
+      gpsEntries.set(write.tag, { tag: write.tag, type: write.type, value });
+    }
+    if (gps.version && fresh && !gpsEntries.has(GPS_TAG_VERSION)) {
+      gpsOrder = [GPS_TAG_VERSION, ...gpsOrder];
+      gpsEntries.set(GPS_TAG_VERSION, {
+        tag: GPS_TAG_VERSION, type: 1, value: encodeTiffValue(little, 1, [2, 3, 0, 0]) ?? new Uint8Array(4),
+      });
+    }
+  }
+
+  // ---- IFD0 layout (count + entries + next + data area) ----
+  const headerSize = 8 + 2 + order.length * 12 + 4;
+  const dataParts: Uint8Array[] = [];
+  const entryBlobs: Uint8Array[] = [];
+  let cursor = headerSize;
+  for (const tag of order) {
+    const item = ifd0.get(tag);
+    if (!item) return null;
+    const per = TIFF_TYPE_SIZES[item.type] ?? 0;
+    const count = per > 0 ? Math.floor(item.value.length / per) : 0;
+    if (per === 0 || count === 0 || count * per !== item.value.length) return null;
+    const entry = new Uint8Array(12);
+    const view = new DataView(entry.buffer);
+    view.setUint16(0, tag, little);
+    view.setUint16(2, item.type, little);
+    view.setUint32(4, count, little);
+    if (item.value.length <= 4) {
+      entry.set(item.value, 8);
+    } else {
+      view.setUint32(8, cursor, little);
+      dataParts.push(item.value);
+      cursor += item.value.length;
+    }
+    entryBlobs.push(entry);
+  }
+
+  // ---- GPS block (fresh table + own data area) ----
+  let gpsBlock: Uint8Array | null = null;
+  let gpsBlockStart = 0;
+  if (gps.op === "write") {
+    gpsBlockStart = headerSize + dataParts.reduce((sum, part) => sum + part.length, 0);
+    const gpsCount = gpsOrder.length;
+    if (gpsCount === 0) return null; // a write always carries ≥1 tag
+    const tableSize = 2 + gpsCount * 12 + 4;
+    let gpsCursor = gpsBlockStart + tableSize;
+    const gpsData: Uint8Array[] = [];
+    const gpsTable = new Uint8Array(tableSize);
+    const gpsView = new DataView(gpsTable.buffer);
+    gpsView.setUint16(0, gpsCount, little);
+    for (let i = 0; i < gpsCount; i += 1) {
+      const item = gpsEntries.get(gpsOrder[i]);
+      if (!item) return null;
+      const per = TIFF_TYPE_SIZES[item.type] ?? 0;
+      const count = per > 0 ? Math.floor(item.value.length / per) : 0;
+      if (per === 0 || count === 0 || count * per !== item.value.length) return null;
+      const entryAt = 2 + i * 12;
+      gpsView.setUint16(entryAt, item.tag, little);
+      gpsView.setUint16(entryAt + 2, item.type, little);
+      gpsView.setUint32(entryAt + 4, count, little);
+      if (item.value.length <= 4) {
+        gpsTable.set(item.value, entryAt + 8);
+      } else {
+        gpsView.setUint32(entryAt + 8, gpsCursor, little);
+        gpsData.push(item.value);
+        gpsCursor += item.value.length;
+      }
+    }
+    // GPS IFD has no next-IFD pointer: its trailing 4 bytes stay zero.
+    gpsBlock = gpsData.length > 0 ? concat([gpsTable, ...gpsData]) : gpsTable;
+  }
+
+  // ---- carve the old tail around the old GPS IFD region ----
+  const ifd0DataSize = dataParts.reduce((sum, part) => sum + part.length, 0);
+  const tailStartNew = headerSize + ifd0DataSize + (gpsBlock?.length ?? 0);
+  let tailA: Uint8Array | null = null;
+  let tailB: Uint8Array | null = null;
+  let tailAOffset = tailStartNew;
+  let tailBOffset = tailStartNew;
+  if (base && base.tailStart < base.raw.length) {
+    const rawTail = base.raw.slice(base.tailStart);
+    if (gpsIfd && gpsIfd.start >= base.tailStart && gpsIfd.end <= base.raw.length) {
+      const from = gpsIfd.start - base.tailStart;
+      const to = Math.min(rawTail.length, gpsIfd.end - base.tailStart);
+      tailA = rawTail.slice(0, Math.max(0, from));
+      tailB = from <= to ? rawTail.slice(to) : rawTail;
+      tailAOffset = tailStartNew;
+      tailBOffset = tailStartNew + tailA.length;
+    } else {
+      tailA = rawTail;
+      tailB = null;
+      tailAOffset = tailStartNew;
+    }
+  }
+
+  const parts: Uint8Array[] = [
+    new Uint8Array(little ? [0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00] : [0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08]),
+  ];
+  const countBytes = new Uint8Array(2);
+  new DataView(countBytes.buffer).setUint16(0, order.length, little);
+  parts.push(countBytes, ...entryBlobs);
+  parts.push(new Uint8Array(4)); // IFD0 next-IFD pointer placeholder
+  parts.push(...dataParts);
+  if (gpsBlock) parts.push(gpsBlock);
+  if (tailA) parts.push(tailA);
+  if (tailB) parts.push(tailB);
+
+  const out = concat(parts);
+  const outView = new DataView(out.buffer, out.byteOffset, out.byteLength);
+
+  // Per-chunk pointer deltas: pointers inside the carved GPS region refuse.
+  const resolveDelta = (oldPointer: number): number | null => {
+    if (base === null) return 0;
+    if (gpsIfd) {
+      if (oldPointer >= base.tailStart && oldPointer < gpsIfd.start) return tailAOffset - base.tailStart;
+      if (oldPointer >= gpsIfd.end) return tailBOffset - gpsIfd.end;
+      if (oldPointer >= gpsIfd.start && oldPointer < gpsIfd.end) return null;
+    }
+    return tailAOffset - base.tailStart;
+  };
+
+  const pointerOldValue = (tag: number): number | null => {
+    if (base === null) return null;
+    const entry = base.entries.find((candidate) => candidate.tag === tag);
+    if (!entry || entry.value.length !== 4) return null;
+    return new DataView(entry.value.buffer, entry.value.byteOffset, 4).getUint32(0, base.little);
+  };
+
+  let fatal = false;
+  let entryIndex = 0;
+  for (const tag of order) {
+    if (tag === TIFF_TAG_GPS_INFO) {
+      const entryOff = 8 + 2 + entryIndex * 12;
+      if (gps.op === "write") {
+        outView.setUint32(entryOff + 8, gpsBlockStart >>> 0, little);
+      }
+      // remove: the entry does not exist in `order` anymore.
+      entryIndex += 1;
+      continue;
+    }
+    if (!SUB_IFD_TAGS.has(tag)) {
+      entryIndex += 1;
+      continue;
+    }
+    const entryOff = 8 + 2 + entryIndex * 12;
+    const oldPointer = pointerOldValue(tag);
+    if (oldPointer !== null && oldPointer !== 0) {
+      const delta = resolveDelta(oldPointer);
+      if (delta === null) {
+        fatal = true;
+      } else {
+        outView.setUint32(entryOff + 8, (oldPointer + delta) >>> 0, little);
+      }
+    }
+    entryIndex += 1;
+  }
+  if (fatal) return null;
+  if (base !== null && base.nextIfdOffset !== 0) {
+    const delta = resolveDelta(base.nextIfdOffset);
+    if (delta === null) return null;
+    outView.setUint32(8 + 2 + order.length * 12, (base.nextIfdOffset + delta) >>> 0, little);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- XMP
 
 export const XMP_NS = {
@@ -248,6 +541,8 @@ export const XMP_NS = {
   xmpRights: "http://ns.adobe.com/xap/1.0/rights/",
   photoshop: "http://ns.adobe.com/photoshop/1.0/",
   iptcCore: "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/",
+  exif: "http://ns.adobe.com/exif/1.0/",
+  iptcExt: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/",
 } as const;
 
 export interface XmpProperty {
@@ -385,6 +680,66 @@ export function mergeXmpPacket(existing: string, updates: XmpProperty[], xml: Xm
     return null;
   }
   return xml.serialize(doc);
+}
+
+/**
+ * Remove matching wrapper tags for one property (Screen 09 GPS removal).
+ * Any child rdf:li inside the element is removed along with it — this is a
+ * whole-property removal, not a value edit.
+ */
+export function removeXmpProperties(
+  existing: string,
+  removals: Array<{ ns: string; prop: string }>,
+  xml: XmlCodec,
+): string | null {
+  let doc: Document;
+  try {
+    doc = xml.parse(existing);
+    if (findElements(doc, XMP_NS.rdf, "RDF").length === 0) return null;
+  } catch {
+    return null;
+  }
+  try {
+    for (const removal of removals) {
+      for (const element of findElements(doc, removal.ns, removal.prop)) {
+        const parent = element.parentNode;
+        if (parent) parent.removeChild(element);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return xml.serialize(doc);
+}
+
+/**
+ * One-stop XMP packet edit (Screen 09): apply removals then writes to an
+ * existing packet, or build a fresh one when none exists. A removal-only
+ * request against a missing packet is a no-op (null — no packet created),
+ * and an edit yielding no changes still serializes the untouched packet.
+ */
+export function editXmpPacket(
+  existing: string | null,
+  updates: XmpProperty[],
+  removals: Array<{ ns: string; prop: string }>,
+  xml: XmlCodec,
+): string | null {
+  if (existing === null) {
+    if (updates.length === 0) return null;
+    return new TextDecoder("utf-8", { fatal: false }).decode(buildXmpPacket(updates));
+  }
+  let text = existing;
+  if (removals.length > 0) {
+    const removed = removeXmpProperties(text, removals, xml);
+    if (removed === null) return null;
+    text = removed;
+  }
+  if (updates.length > 0) {
+    const merged = mergeXmpPacket(text, updates, xml);
+    if (merged === null) return null;
+    text = merged;
+  }
+  return text;
 }
 
 /** Read back specific XMP properties (verification + tests). */

@@ -96,10 +96,11 @@ test("partial opt-in: excluded by default, included when checked", async ({ page
   await expect(page.locator('[data-testid="batch-progress"]')).toContainText(/2 of 2 files processed/, { timeout: 120000 });
   // Default: only the verified file is eligible.
   await expect(page.locator('[data-testid="download-zip"]')).toContainText("(1)");
-  // Opt in: both files eligible, partial status still visible in its row.
+  // Opt in: both files eligible; the row keeps its honest "Partial" status
+  // (Screen 04 row vocabulary, never a "fully cleaned" claim).
   await page.locator('[data-testid="zip-include-partials"]').check();
   await expect(page.locator('[data-testid="download-zip"]')).toContainText("(2)");
-  await expect(row(page, "jpeg-jumbf.jpg")).toContainText("partially cleaned");
+  await expect(row(page, "jpeg-jumbf.jpg")).toContainText("Partial");
   const entries = await downloadZipEntries(page);
   expect(entries.size).toBe(2);
   expect((page as unknown as { __errors: string[] }).__errors).toHaveLength(0);

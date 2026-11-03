@@ -1,4 +1,5 @@
 import type { SniffedKind } from "../../format-detection/signatures";
+import { cleanMp3, type Mp3CleanOutput } from "../audio/clean-mp3";
 import { cleanIsobmff, type IsobmffCleanOutput } from "./isobmff";
 import { cleanJpeg, type JpegCleanOutput } from "./jpeg";
 import { cleanPng, type PngCleanOutput } from "./png";
@@ -23,6 +24,7 @@ export type CleanEngineOutput = {
   | { engine: "png"; detail: PngCleanOutput }
   | { engine: "webp"; detail: WebpCleanOutput }
   | { engine: "isobmff"; detail: IsobmffCleanOutput }
+  | { engine: "mp3"; detail: Mp3CleanOutput }
 );
 
 export function cleanImageBytes(
@@ -50,6 +52,12 @@ export function cleanImageBytes(
       // item-graph safety dominates, so aggressive mode changes nothing.
       const detail = cleanIsobmff(input, kind === "avif" ? "avif" : "heic", policy);
       return { engine: "isobmff", data: detail.data, changes: detail.changes, warnings: detail.warnings, coverageLimited: detail.coverageLimited, payloadFingerprint: detail.imagePayloadFingerprint, detail };
+    }
+    case "mp3-audio": {
+      // Phase 09: audio takes its own payload-preserving engine; the MPEG
+      // frames are the payload whose byte-equality the verifier re-checks.
+      const detail = cleanMp3(input, policy);
+      return { engine: "mp3", data: detail.data, changes: detail.changes, warnings: detail.warnings, coverageLimited: detail.coverageLimited, payloadFingerprint: detail.audioFingerprint, detail };
     }
     case "mp4-video":
       throw new CleanRefused("unsupported", "Video cleaning lands in Phase 8 — the image engine never touches video.");

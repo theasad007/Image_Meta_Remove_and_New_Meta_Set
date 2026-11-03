@@ -19,6 +19,7 @@ export interface IndicatorEvidence {
 /** Generator/software signatures matched case-insensitively (substring). */
 const GENERATOR_SIGNATURES = [
   "stable diffusion",
+  "stable-diffusion",
   "sdxl",
   "comfyui",
   "automatic1111",

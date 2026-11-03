@@ -266,7 +266,10 @@ export async function buildReportPdf(
         : "no output inspection";
       paragraph(ctx, `Before — ${beforeLine || "nothing inspected"}`, 8, 1);
       paragraph(ctx, `After — ${afterLine}`, 8, 1);
-      paragraph(ctx, `Removed verified: ${record.verifiedRemovedCount} · Retained: ${record.retainedCount} · Unverified/unsupported: ${record.unverifiedCount} · Rewritten verified: ${record.verifiedRewrittenCount} · GPS: ${record.gpsBefore} → ${record.gpsAfter} · AI: ${record.aiIndicatorsBefore} · C2PA: ${record.c2paState}`, 8, 1);
+      paragraph(ctx, `Removed verified: ${record.verifiedRemovedCount} · Retained: ${record.retainedCount} · Unverified/unsupported: ${record.unverifiedCount} · Rewritten verified: ${record.verifiedRewrittenCount} · GPS: ${record.gpsBefore} → ${record.gpsAfter} · AI: ${record.aiIndicatorsBefore} · C2PA: ${record.c2paBefore} → ${record.c2paAfter}`, 8, 1);
+      if (record.mpegPayloadPreserved !== "not audio") {
+        paragraph(ctx, `Audio: operation ${record.audioOperation} · ID3 ${record.audioId3Before} → ${record.audioId3After} · Encoded MPEG payload preserved: ${record.mpegPayloadPreserved}`, 8, 1);
+      }
       if (record.archiveIncluded) {
         paragraph(ctx, `In ZIP: ${record.archivePath}`, 8, 1);
       } else {

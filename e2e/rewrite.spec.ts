@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { row, upload } from "./helpers";
+import { cleanRow, upload } from "./helpers";
 
 /**
  * Phase 6 guest-safety journeys (no Firebase config in this environment):
@@ -21,50 +21,39 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("guest sees auth/profile/rewrite gates without any login wall", async ({ page }) => {
+test("guest keeps the queue while profile rewriting is moved to the account page", async ({ page }) => {
   await upload(page, ["jpeg-exif.jpg"]);
-  // Guest inspect + clean still work with no login prompt.
-  await expect(page.locator('[data-testid="auth-panel"]')).toBeVisible();
-  await expect(page.locator('[data-testid="profile-panel"]')).toBeVisible();
-  await expect(page.locator('[data-testid="rewrite-panel"]')).toBeVisible();
-  // Without configuration this build reports honestly; with configuration
-  // it would show a Google button — either way no queue reset occurs.
+  await expect(page.getByRole("button", { name: /Remove & Rewrite/i })).toBeEnabled({ timeout: 120000 });
+  await page.getByRole("button", { name: /Remove & Rewrite/i }).click();
+  await expect(page.locator("p").filter({ hasText: /Sign in on your profile page/i })).toBeVisible();
+  // Profile editing is deliberately not duplicated on the image workspace.
   const queueCount = await page.locator('[data-testid="queue-item"]').count();
   expect(queueCount).toBe(1);
-  // Rewrite row action exists but is gated (disabled without sign-in/profile).
-  const rewriteBtn = row(page, "jpeg-exif.jpg").getByRole("button", { name: "Rewrite" });
-  await expect(rewriteBtn).toBeVisible();
-  await expect(rewriteBtn).toBeDisabled();
+  await page.goto("/account/profile");
+  await expect(page.locator('[data-testid="auth-panel"]')).toBeVisible();
+  await expect(page.locator('[data-testid="profile-panel"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="rewrite-panel"]')).toHaveCount(0);
   // Cleaning still works for guests.
-  await row(page, "jpeg-exif.jpg").getByRole("button", { name: "Remove metadata" }).click();
-  await page.locator('[data-testid="before-after-panel"]').waitFor();
-  // Queue survived; no auth modal cleared anything.
+  await page.goto("/");
+  await upload(page, ["jpeg-exif.jpg"]);
+  await cleanRow(page, "jpeg-exif.jpg");
   expect(await page.locator('[data-testid="queue-item"]').count()).toBe(1);
 });
 
-test("rewrite mode and field selection are keyboard-accessible and preserve queue", async ({ page }) => {
-  await upload(page, ["png-text-exif.png", "webp-exif-xmp.webp"]);
-  expect(await page.locator('[data-testid="queue-item"]').count()).toBe(2);
-  // Mode radios toggle without touching the queue.
-  const replace = page.getByRole("radio", { name: /Replace editable/i });
-  const update = page.getByRole("radio", { name: /Update only selected/i });
-  await expect(replace).toBeChecked();
-  await update.click();
-  await expect(update).toBeChecked();
-  await replace.click();
-  await expect(replace).toBeChecked();
-  expect(await page.locator('[data-testid="queue-item"]').count()).toBe(2);
-  // Bulk rewrite buttons exist and stay disabled for signed-out guests.
-  await expect(page.locator('[data-testid="rewrite-apply-selected"]')).toBeDisabled();
-  await expect(page.locator('[data-testid="rewrite-apply-all"]')).toBeDisabled();
+test("profile route is directly loadable and keeps sign-in/profile gates separate", async ({ page }) => {
+  await page.goto("/account/profile");
+  await expect(page).toHaveURL(/\/account\/profile\/?$/);
+  await expect(page.getByRole("heading", { name: "Your metadata profile", exact: true })).toBeVisible();
+  await expect(page.locator('[data-testid="auth-panel"]')).toBeVisible();
+  await expect(page.locator('[data-testid="profile-panel"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="rewrite-panel"]')).toHaveCount(0);
   const errors = (page as unknown as { __errors: string[] }).__errors;
   expect(errors).toEqual([]);
 });
 
 test("reports still export the 36-column schema with rewrite counts for guests", async ({ page }) => {
   await upload(page, ["jpeg-exif.jpg"]);
-  await row(page, "jpeg-exif.jpg").getByRole("button", { name: "Remove metadata" }).click();
-  await page.locator('[data-testid="before-after-panel"]').waitFor();
+  await cleanRow(page, "jpeg-exif.jpg");
   // Standalone CSV downloads and keeps the rewrite column (0 for clean-only).
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: /Download CSV/i }).first().click();

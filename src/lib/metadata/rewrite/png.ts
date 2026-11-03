@@ -1,9 +1,12 @@
 import { encodeChunk, parsePngChunks } from "../clean/png";
+import type { GpsEngineDirective } from "./gps";
+import { GPS_XMP_REMOVAL_QUERIES, toTiffDirective } from "./gps";
 import type { FieldWritePlan } from "./writes";
 import {
   buildTiff,
+  buildTiffWithGps,
   buildXmpPacket,
-  mergeXmpPacket,
+  editXmpPacket,
   parseTiff,
   type TiffWriteValue,
   type XmlCodec,
@@ -11,10 +14,13 @@ import {
 } from "./codecs";
 
 /**
- * PNG profile-field writer (Phase 6): `eXIf` TIFF chunk + XMP `iTXt` chunk.
- * Merge semantics: existing chunks are read and overlaid, everything else
- * (IDAT/iCCP/palette/ancillary) passes through byte-identical with fresh
- * CRCs. New metadata chunks are inserted right after IHDR.
+ * PNG profile-field writer (Phase 6) with Screen 09 GPS support:
+ * `eXIf` TIFF chunk (rebuilt through the GPS-aware codec when a GPS
+ * directive rides along) + XMP `iTXt` chunk (standard coordinate mirrors
+ * stripped for "Remove GPS location"). Merge semantics otherwise: existing
+ * chunks are read and overlaid, everything else (IDAT/iCCP/palette/
+ * ancillary) passes through byte-identical with fresh CRCs. New metadata
+ * chunks are inserted right after IHDR.
  */
 
 export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
@@ -22,7 +28,7 @@ export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
 export interface PngRewriteOutput {
   data: Uint8Array;
   warnings: string[];
-  detail: { exif: RewriteChannel; xmp: RewriteChannel };
+  detail: { exif: RewriteChannel; xmp: RewriteChannel; gps: RewriteChannel };
   skipped: Array<{ field: string; channel: string; reason: string }>;
 }
 
@@ -66,10 +72,13 @@ export function writePngFields(
   input: Uint8Array,
   plans: FieldWritePlan[],
   xml: XmlCodec,
+  gps?: GpsEngineDirective,
 ): PngRewriteOutput {
   const warnings: string[] = [];
   const skipped: PngRewriteOutput["skipped"] = [];
   const { chunks, trailing } = parsePngChunks(input);
+  const gpsTiff = gps ? toTiffDirective(gps) : null;
+  const xmpRemovals = gps?.op === "remove" ? GPS_XMP_REMOVAL_QUERIES : [];
 
   const exifWrites: TiffWriteValue[] = [];
   const xmpProps: XmpProperty[] = [];
@@ -88,57 +97,77 @@ export function writePngFields(
   const detail: PngRewriteOutput["detail"] = {
     exif: exifWrites.length === 0 ? "absent" : "unsupported",
     xmp: xmpProps.length === 0 ? "absent" : "unsupported",
+    gps: gps ? "unsupported" : "absent",
   };
 
   let exifChunk: Uint8Array | null = null;
-  if (exifWrites.length > 0) {
+  if (exifWrites.length > 0 || gps) {
     const existing = chunks.filter((c) => c.type === "eXIf");
     if (existing.length > 1) {
       for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Multiple eXIf chunks present; refusing ambiguous merge." });
+      if (gps) detail.gps = "unsupported";
     } else if (existing.length === 1 && existing[0]) {
       const parsed = parseTiff(existing[0].data);
       if (!parsed) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing eXIf chunk is malformed; refusing to rewrite it." });
+        if (gps) detail.gps = "unsupported";
       } else {
-        const merged = buildTiff(parsed, exifWrites, parsed.little);
+        const merged = gpsTiff
+          ? buildTiffWithGps(parsed, exifWrites, gpsTiff, parsed.little)
+          : buildTiff(parsed, exifWrites, parsed.little);
         if (!merged) {
           for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF merge failed value encoding." });
+          if (gps) detail.gps = "unsupported";
         } else {
           exifChunk = encodeChunk("eXIf", merged);
-          detail.exif = "merged";
+          if (exifWrites.length > 0) detail.exif = "merged";
+          if (gps) detail.gps = "merged";
         }
       }
+    } else if (gpsTiff?.op === "remove") {
+      // No eXIf chunk: no PNG EXIF GPS exists to remove; nothing is created.
+      detail.gps = "absent";
     } else {
-      const built = buildTiff(null, exifWrites, true);
+      const built = gpsTiff
+        ? buildTiffWithGps(null, exifWrites, gpsTiff, true)
+        : buildTiff(null, exifWrites, true);
       if (!built) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF value encoding failed." });
+        if (gps) detail.gps = "unsupported";
       } else {
         exifChunk = encodeChunk("eXIf", built);
-        detail.exif = "created";
+        if (exifWrites.length > 0) detail.exif = "created";
+        if (gps) detail.gps = "created";
       }
     }
   }
 
   let xmpChunk: Uint8Array | null = null;
-  if (xmpProps.length > 0) {
+  if (xmpProps.length > 0 || xmpRemovals.length > 0) {
     const existing = chunks.filter(
       (c) => c.type === "iTXt" && new TextDecoder("latin1").decode(c.data.slice(0, 17)).startsWith(XMP_KEYWORD),
     );
     if (existing.length > 1) {
       for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Multiple XMP iTXt chunks present; refusing ambiguous merge." });
+      if (xmpRemovals.length > 0) detail.gps = "unsupported";
     } else if (existing.length === 1 && existing[0]) {
       const text = decodeItxtXmp(existing[0].data);
       if (text === null) {
         for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Existing XMP iTXt is compressed or malformed; refusing to rewrite it." });
+        if (xmpRemovals.length > 0) detail.gps = "unsupported";
       } else {
-        const merged = mergeXmpPacket(text, xmpProps, xml);
+        const merged = editXmpPacket(text, xmpProps, xmpRemovals, xml);
         if (merged === null) {
           for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Existing XMP is not parseable XML; refusing to rewrite it." });
+          if (xmpRemovals.length > 0) detail.gps = "unsupported";
         } else {
           xmpChunk = encodeChunk("iTXt", encodeItxtXmp(new TextEncoder().encode(merged)));
-          detail.xmp = "merged";
+          if (xmpProps.length > 0) detail.xmp = "merged";
         }
       }
+    } else if (xmpRemovals.length > 0 && xmpProps.length === 0) {
+      // No XMP iTXt present: no XMP coordinates exist to remove. Nothing is
+      // created; the removal claim is settled by output verification.
     } else {
       xmpChunk = encodeChunk("iTXt", encodeItxtXmp(buildXmpPacket(xmpProps)));
       detail.xmp = "created";

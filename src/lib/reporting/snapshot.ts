@@ -71,36 +71,54 @@ function aiSummary(before: ImageInspectionResult | undefined): string {
   return `${indicators.length} (${explicit} explicit, ${possible} possible${keys ? `; ${keys}` : ""}) — clues only, never proof`;
 }
 
+function c2paStateOf(result: ImageInspectionResult | undefined): string {
+  const status = result?.categories.find((c) => c.category.startsWith("C2PA"))?.status;
+  return typeof status === "string" ? status : "not_inspected";
+}
+
+/** SOL-010: separate before/after C2PA states — never one duplicated value. */
 function c2paSummary(
   before: ImageInspectionResult | undefined,
   after: ImageInspectionResult | undefined,
 ): string {
-  const states: string[] = [];
-  for (const result of [before, after]) {
-    const status = result?.categories.find((c) => c.category.startsWith("C2PA"))?.status;
-    if (typeof status === "string") states.push(status);
-  }
-  if (states.length === 0) return "not_inspected";
-  if (states.some((s) => s !== "not_inspected")) return states.join("/");
-  return "not_inspected";
+  const beforeState = c2paStateOf(before);
+  const afterState = c2paStateOf(after);
+  if (beforeState === "not_inspected" && afterState === "not_inspected") return "not_inspected";
+  return `${beforeState} → ${afterState}`;
+}
+
+/** SOL-010: MP3 ID3 version facts from an audio inspection result. */
+function audioId3VersionOf(result: ImageInspectionResult | undefined): string {
+  if (!result) return "not_inspected";
+  const v2 = result.categories.find((c) => c.category.startsWith("ID3v2."));
+  const v1 = result.categories.find((c) => c.category.startsWith("ID3v1"));
+  const parts: string[] = [];
+  if (v2 && v2.status === "detected") parts.push(v2.category.split(" ")[0]);
+  if (v1 && v1.status === "detected") parts.push("ID3v1");
+  return parts.length > 0 ? parts.join("+") : "none detected";
 }
 
 function verificationOf(
   cleaning: FileCleaningResult | undefined,
   rewrite?: FileRewriteResult,
 ): { status: ReportVerification; method: string } {
+  // SOL-010: the method names the ACTUAL production behavior — for MP3 the
+  // encoded MPEG payload is compared byte-by-byte between input and output
+  // (never a hash-only claim).
+  const rewriteMethod = "rewrite byte-verify: signature + structure + re-inspect + field re-observation + exact encoded payload byte comparison";
+  const cleanMethod = "byte-verify: signature + structure + re-inspect + exact encoded payload byte comparison";
   if (rewrite) {
     const rewrites = rewrite.changes.filter((c) => c.action === "rewritten");
     if (rewrites.length === 0) {
       return { status: "not-verified", method: "rewrite byte-verify pipeline" };
     }
     if (rewrites.every((c) => c.verification === "verified")) {
-      return { status: "verified", method: "rewrite byte-verify: signature + structure + re-inspect + field re-observation + payload fingerprint" };
+      return { status: "verified", method: rewriteMethod };
     }
     if (rewrites.some((c) => c.verification === "failed")) {
-      return { status: "failed-verification", method: "rewrite byte-verify: signature + structure + re-inspect + field re-observation + payload fingerprint" };
+      return { status: "failed-verification", method: rewriteMethod };
     }
-    return { status: "partially-verified", method: "rewrite byte-verify: signature + structure + re-inspect + field re-observation + payload fingerprint" };
+    return { status: "partially-verified", method: rewriteMethod };
   }
   if (!cleaning) return { status: "not-verified", method: "not attempted" };
   const removals = cleaning.changes.filter((c) => c.action === "removed");
@@ -110,12 +128,12 @@ function verificationOf(
       : { status: "not-verified", method: "byte-verify pipeline" };
   }
   if (removals.every((c) => c.verification === "verified")) {
-    return { status: "verified", method: "byte-verify: signature + structure + re-inspect + payload fingerprint" };
+    return { status: "verified", method: cleanMethod };
   }
   if (removals.some((c) => c.verification === "failed")) {
-    return { status: "failed-verification", method: "byte-verify: signature + structure + re-inspect + payload fingerprint" };
+    return { status: "failed-verification", method: cleanMethod };
   }
-  return { status: "partially-verified", method: "byte-verify: signature + structure + re-inspect + payload fingerprint" };
+  return { status: "partially-verified", method: cleanMethod };
 }
 
 function overallStatus(
@@ -260,8 +278,26 @@ export function buildReportSnapshot(input: SnapshotInput): ReportSnapshot {
     if (!before && !cleaning && !rewrite) {
       warnings.unshift("File queued but never inspected or cleaned in this run.");
     }
-    const requestedOperation = rewrite ? "rewrite" : cleaning || before ? "clean" : "none";
+    // SOL-010: explicit operation — inspection alone is never "clean".
+    const requestedOperation = rewrite ? "rewrite" : cleaning ? "clean" : before ? "inspect" : "none";
     const modeLabel = rewrite ? rewrite.mode : cleaning ? cleaning.policy.mode : "";
+    // SOL-010: MP3 facts (audio rows only).
+    const isAudio = entry.item.detected.mediaKind === "audio";
+    const outputStatus = rewrite?.status ?? cleaning?.status;
+    const mpegPayloadPreserved = !isAudio
+      ? "not audio"
+      : outputStatus === "verified_clean" || outputStatus === "verified_rewritten"
+        ? "yes"
+        : outputStatus === "failed"
+          ? "no"
+          : "not verified";
+    const audioOperation = !isAudio
+      ? "not audio"
+      : rewrite
+        ? "rewrite"
+        : cleaning
+          ? (cleaning.policy.targets ?? []).includes("ai_markers") && (cleaning.policy.targets ?? []).length === 1 ? "ai-only" : "full-clean"
+          : before ? "none" : "not run";
     return {
       index: position + 1,
       fileId: entry.item.id,
@@ -287,7 +323,13 @@ export function buildReportSnapshot(input: SnapshotInput): ReportSnapshot {
       gpsBefore: gpsSummary(before, privacy),
       gpsAfter: afterResult ? gpsSummary(afterResult, privacy) : "not_inspected",
       aiIndicatorsBefore: aiSummary(before),
+      c2paBefore: c2paStateOf(before),
+      c2paAfter: c2paStateOf(afterResult),
       c2paState: c2paSummary(before, afterResult),
+      audioId3Before: audioId3VersionOf(before),
+      audioId3After: audioId3VersionOf(afterResult),
+      audioOperation,
+      mpegPayloadPreserved,
       detectedTagCount: detectedTags,
       verifiedRemovedCount: removed,
       verifiedRewrittenCount: rewritten,

@@ -2,6 +2,7 @@ node_modules/
 .next/
 out/
 doc/
+docs/
 coverage/
 e2e/report/
 e2e/artifacts/

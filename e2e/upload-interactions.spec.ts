@@ -33,5 +33,7 @@ test("dragging an actual file onto the visible surface queues it", async ({ page
   await dropzone.dispatchEvent("dragover", { dataTransfer });
   await dropzone.dispatchEvent("drop", { dataTransfer });
   await expect(page.locator('[data-testid="queue-item"]', { hasText: "dropped-image.png" })).toHaveCount(1);
-  await expect(page.locator('[data-testid="upload-feedback"]')).toContainText("added to your private queue");
+  // The landing uploader unmounts once the queue takes over (Screen 04), so
+  // the drop feedback now lives in the workspace announcement feed.
+  await expect(page.locator('[data-testid="queue-announcement"]')).toContainText(/added\.|Inspect/);
 });

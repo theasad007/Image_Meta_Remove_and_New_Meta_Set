@@ -59,11 +59,16 @@ export function blankProfile(): MetadataProfile {
 /** Split free keyword input on commas/newlines/semicolons; trim + dedupe. */
 export function parseKeywords(input: string): string[] {
   const seen = new Set<string>();
+  const out: string[] = [];
   for (const part of input.split(/[,\n;]+/)) {
     const word = part.trim().replace(/\s+/g, " ");
-    if (word && !seen.has(word.toLowerCase())) seen.add(word);
+    if (!word) continue;
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(word);
   }
-  return [...seen].slice(0, PROFILE_LIMITS.keywords.max);
+  return out.slice(0, PROFILE_LIMITS.keywords.max);
 }
 
 export interface ProfileValidation {
@@ -87,9 +92,10 @@ export function validateProfile(input: Record<string, unknown>): ProfileValidati
       errors[field] = "Must be text.";
       continue;
     }
-    const value = raw.trim().replace(/\s+/g, field === "description" ? " " : " ");
+    // Keywords must see the RAW input: newlines are separators, so the
+    // generic whitespace normalization (nl → space) must not run first.
     if (field === "keywords") {
-      const list = parseKeywords(value);
+      const list = parseKeywords(raw);
       const tooLong = list.find((word) => word.length > MAX_KEYWORD_LENGTH);
       if (tooLong) {
         errors[field] = `Each keyword must be ${MAX_KEYWORD_LENGTH} characters or fewer.`;
@@ -99,6 +105,7 @@ export function validateProfile(input: Record<string, unknown>): ProfileValidati
       profile.keywordsList = list;
       continue;
     }
+    const value = raw.trim().replace(/\s+/g, field === "description" ? " " : " ");
     if (value.length > limit.max) {
       errors[field] = `Must be ${limit.max} characters or fewer (currently ${value.length}).`;
       continue;

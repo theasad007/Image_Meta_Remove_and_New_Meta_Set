@@ -8,7 +8,7 @@
  */
 
 /** Broad media category derived from the file's provisional classification. */
-export type MediaKind = "image" | "video" | "unknown";
+export type MediaKind = "image" | "video" | "audio" | "unknown";
 
 /** How a file's container/format was identified. */
 export type DetectionMethod = "extension-hint" | "binary-sniff";

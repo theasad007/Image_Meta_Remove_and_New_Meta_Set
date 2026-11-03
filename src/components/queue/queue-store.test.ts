@@ -44,10 +44,10 @@ describe("queue-store", () => {
   });
   it("supports large batches without a count cap", () => {
     const files = Array.from(
-      { length: 120 },
+      { length: 1200 },
       (_, i) => fakeFile(`img-${i}.avif`, 100, "image/avif"),
     );
-    expect(createEntries(files)).toHaveLength(120);
+    expect(createEntries(files)).toHaveLength(1200);
   });
   it("upgrades rows to byte-verified labels with mismatch notices", async () => {
     const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);

@@ -22,8 +22,12 @@ export const IMAGE_EXTENSIONS = [
 
 export const VIDEO_EXTENSIONS = ["mp4", "mov", "webm"] as const;
 
+/** Audio extensions (Phase 07) — MP3 first; more containers later. */
+export const AUDIO_EXTENSIONS = ["mp3"] as const;
+
 export type ImageExtension = (typeof IMAGE_EXTENSIONS)[number];
 export type VideoExtension = (typeof VIDEO_EXTENSIONS)[number];
+export type AudioExtension = (typeof AUDIO_EXTENSIONS)[number];
 
 const EXTENSION_LABELS: Record<string, string> = {
   jpg: "JPEG",
@@ -36,10 +40,12 @@ const EXTENSION_LABELS: Record<string, string> = {
   mp4: "MP4",
   mov: "MOV",
   webm: "WebM",
+  mp3: "MP3",
 };
 
 const IMAGE_SET = new Set<string>(IMAGE_EXTENSIONS);
 const VIDEO_SET = new Set<string>(VIDEO_EXTENSIONS);
+const AUDIO_SET = new Set<string>(AUDIO_EXTENSIONS);
 
 /** Extensions whose bytes browsers can generally render in an <img>. */
 const NATIVE_IMAGE_PREVIEW = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
@@ -63,6 +69,7 @@ export function classifyFile(
   let mediaKind: MediaKind = "unknown";
   if (IMAGE_SET.has(extension)) mediaKind = "image";
   else if (VIDEO_SET.has(extension)) mediaKind = "video";
+  else if (AUDIO_SET.has(extension)) mediaKind = "audio";
 
   const supportedForQueue = mediaKind !== "unknown";
   const label = EXTENSION_LABELS[extension] ?? "Unknown";

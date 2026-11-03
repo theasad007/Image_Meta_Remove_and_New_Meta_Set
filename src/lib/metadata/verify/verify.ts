@@ -1,6 +1,8 @@
 import type { ImageInspectionResult } from "../../../types/inspection";
 import { sniffImageBytes, type SniffedKind } from "../../format-detection/signatures";
 import { inspectImage } from "../inspect/inspect";
+import { inspectAudio } from "../audio/inspect-audio";
+import { compareMp3AudioPayloads, probeMp3 } from "../audio/id3";
 import { cleanImageBytes } from "../clean/index";
 import { isobmffImagePayloads, validateIsobmffStructure } from "../clean/isobmff";
 import { parseJpegSegments, validateJpegStructure } from "../clean/jpeg";
@@ -61,6 +63,15 @@ function payloadPartsOf(kind: SniffedKind, data: Uint8Array): Uint8Array[] | nul
       case "heic":
       case "heif-generic":
         return isobmffImagePayloads(data);
+      case "mp3-audio": {
+        // The MPEG audio segment IS the payload (Phase 09): isolate it on
+        // both sides so byte-equality proves the audio never changed even
+        // though the surrounding tag bytes differ.
+        const probe = probeMp3(data);
+        if (!probe.ok || !probe.stream) return null;
+        // Frame-derived audio end (SOL-001/007).
+        return [data.subarray(probe.audioStart, probe.stream.streamEnd)];
+      }
       default:
         return null;
     }
@@ -95,13 +106,20 @@ function validateStructure(kind: SniffedKind, data: Uint8Array): { ok: boolean; 
     case "heic":
     case "heif-generic":
       return validateIsobmffStructure(data, "heic");
+    case "mp3-audio": {
+      // MP3 structural validation = full probe (tag + MPEG frame walk).
+      const probe = probeMp3(data);
+      return probe.ok && probe.stream !== null
+        ? { ok: true, errors: [] }
+        : { ok: false, errors: [probe.unsupportedReason ?? "No valid MPEG audio stream after the tag."] };
+    }
     default:
       return { ok: false, errors: ["No structural validator for this container."] };
   }
 }
 
 /** Target groups whose absence-after must be proven (not technical keeps). */
-const TARGET_GROUPS = new Set(["EXIF", "GPS", "XMP", "IPTC", "PNG text", "PNG text chunks", "JPEG", "C2PA"]);
+const TARGET_GROUPS = new Set(["EXIF", "GPS", "XMP", "IPTC", "PNG text", "PNG text chunks", "JPEG", "C2PA", "ID3", "ID3v1", "Trailing"]);
 
 function isTargetChange(change: MetadataChange): boolean {
   return change.action === "removed" && TARGET_GROUPS.has(change.group);
@@ -165,6 +183,15 @@ export async function verifyCleanedImage(input: VerifyInput): Promise<FileCleani
   }
 
   // 4. Encoded payload bytes must match exactly (no collision-prone hash).
+  if (kind === "mp3-audio") {
+    const audioIntegrity = compareMp3AudioPayloads(inputBytes, cleaned.data);
+    if (!audioIntegrity.ok) {
+      return {
+        ...base, status: "failed", changes: markAll(cleaned.changes, "failed"),
+        errors: [audioIntegrity.reason ?? "MPEG audio integrity changed before/after cleaning; output withheld."], warnings,
+      };
+    }
+  }
   const beforePayload = payloadPartsOf(kind, inputBytes);
   const afterPayload = payloadPartsOf(kind, cleaned.data);
   if (beforePayload === null || afterPayload === null) {
@@ -184,7 +211,17 @@ export async function verifyCleanedImage(input: VerifyInput): Promise<FileCleani
   let after: ImageInspectionResult;
   try {
     const copy = new Uint8Array(cleaned.data);
-    after = await (input.inspectOutput ?? inspectImage)(
+    // Audio outputs re-inspect with the MP3 inspector (image readers would
+    // reject them); images keep the existing inspect path.
+    const defaultInspect = kind === "mp3-audio"
+      ? (id: string, source: ArrayBuffer | File | Blob | Uint8Array, name: string) => {
+          const blobSource = source instanceof File || source instanceof Blob
+            ? source
+            : new Blob([new Uint8Array(source as Uint8Array).slice().buffer as ArrayBuffer]);
+          return inspectAudio(id, blobSource, name);
+        }
+      : inspectImage;
+    after = await (input.inspectOutput ?? defaultInspect)(
       `${fileId}:after`,
       copy.buffer,
       outputName,

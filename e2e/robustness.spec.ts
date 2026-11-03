@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { cleanRow, inspectRow, row, upload } from "./helpers";
+import { cleanRow, closeDetailsModal, detailsPanel, inspectRow, row, upload } from "./helpers";
 
 /** Failures must stay per-file: the queue keeps working, nothing crashes. */
 test.beforeEach(async ({ page }) => {
@@ -19,16 +19,21 @@ test("spoofed extension is exposed at intake and inspectable by bytes", async ({
   await expect(row(page, "spoof-jpg-with-png-bytes.jpg")).toContainText("PNG");
   await expect(row(page, "spoof-jpg-with-png-bytes.jpg")).toContainText("bytes take precedence");
   await inspectRow(page, "spoof-jpg-with-png-bytes.jpg");
-  await expect(page.locator('[data-testid="inspector-panel"]')).toContainText("png");
+  await expect(detailsPanel(page)).toContainText("png");
   await expectNoPageErrors(page);
 });
 
 test("corrupt and truncated inputs fail safely without output", async ({ page }) => {
   await upload(page, ["jpeg-truncated.jpg", "random-bytes.bin", "empty-file.bin"]);
   await inspectRow(page, "jpeg-truncated.jpg");
-  await expect(page.locator('[data-testid="inspector-panel"]')).toBeVisible();
+  await expect(detailsPanel(page)).toBeVisible();
+  await closeDetailsModal(page);
   await inspectRow(page, "random-bytes.bin");
-  await expect(page.locator('[data-testid="inspector-panel"]').first()).toContainText(/failed/i);
+  // random-bytes.bin is not image-kind: manual inspection auto-expands the
+  // inline row surface (Screen 04 fallback path), which reports the failure.
+  await expect(page.locator('[data-testid="inspector-panel"]')).toContainText(/failed/i);
+  await expect(row(page, "random-bytes.bin").locator('[data-testid="inspector-panel"]')).toContainText(/failed/i);
+  await closeDetailsModal(page);
   // Corrupt JPEG: cleaning must refuse (no download offered).
   await cleanRow(page, "jpeg-truncated.jpg").catch(() => undefined);
   const panel = page.locator('[data-testid="before-after-panel"]');
@@ -45,7 +50,8 @@ test("corrupt and truncated inputs fail safely without output", async ({ page })
 test("animated WebP refuses cleaning, keeps queue alive", async ({ page }) => {
   await upload(page, ["webp-animated.webp"]);
   await inspectRow(page, "webp-animated.webp");
-  await row(page, "webp-animated.webp").getByRole("button", { name: "Remove metadata" }).click();
+  await closeDetailsModal(page);
+  await cleanRow(page, "webp-animated.webp");
   const panel = page.locator('[data-testid="before-after-panel"]');
   await expect(panel).toContainText("unsupported");
   await expect(panel.getByRole("button", { name: /download unavailable/i })).toBeVisible();

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { SignedInUser } from "../../lib/firebase/auth";
 import { PROFILE_FIELDS, validateProfile, type ProfileField } from "../../lib/metadata/rewrite/fields";
 import type { RewriteMode, FileRewriteResult } from "../../lib/metadata/rewrite/rewrite";
@@ -37,6 +38,7 @@ export default function RewritePanel({
   onApplySelected,
   onApplyAll,
   onCancel,
+  workspaceOnly = false,
 }: {
   user: SignedInUser | null;
   profileValues: Record<string, unknown>;
@@ -51,6 +53,7 @@ export default function RewritePanel({
   onApplySelected: () => void;
   onApplyAll: () => void;
   onCancel: () => void;
+  workspaceOnly?: boolean;
 }) {
   const { profile, errors } = validateProfile(profileValues);
   const errorCount = Object.keys(errors).length;
@@ -63,7 +66,12 @@ export default function RewritePanel({
 
   return (
     <section aria-label="Rewrite metadata" data-testid="rewrite-panel" className="surface-card mt-6 rounded-[1.5rem] p-4 sm:p-6">
-      <h2 className="text-base font-semibold">Rewrite Metadata — apply my profile</h2>
+      <h2 className="text-base font-semibold" data-section-heading tabIndex={-1}>{workspaceOnly ? "Rewrite preferences" : "Rewrite Metadata — apply my profile"}</h2>
+      {workspaceOnly ? (
+        <p className="mt-2 text-xs leading-5 text-slate-600">
+          Choose the mode and fields to use when you apply your saved profile. These preferences stay in this browser; image bytes and profile values never leave the supported local/Firebase flows.
+        </p>
+      ) : null}
       {!user ? (
         <p className="mt-2 text-xs text-slate-600">
           Sign in to apply a profile. Guests keep full cleaning and reporting without sign-in.
@@ -130,34 +138,41 @@ export default function RewritePanel({
       {checkedBlank && !blank ? <p className="mt-2 text-xs text-amber-800">⚠ No fields checked — check at least one field to apply.</p> : null}
       {errorCount > 0 ? <p className="mt-2 text-xs text-amber-800">⚠ {errorCount} profile field(s) are invalid — fix them in My Metadata Profile before applying.</p> : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onApplySelected}
-          disabled={!canApply || selectedCount === 0}
-          data-testid="rewrite-apply-selected"
-          className="btn-success !min-h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-          title={!user ? "Sign in to apply a profile." : `Apply to ${selectedCount} selected file(s).`}
-        >
-          {applying ? "Rewriting…" : `Apply profile to selected (${selectedCount})`}
-        </button>
-        <button
-          type="button"
-          onClick={onApplyAll}
-          disabled={!canApply}
-          data-testid="rewrite-apply-all"
-          className="btn-secondary !min-h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-          title={!user ? "Sign in to apply a profile." : `Apply to ${eligibleCount} eligible file(s).`}
-        >
-          {applying ? "Rewriting…" : `Apply profile to all eligible (${eligibleCount})`}
-        </button>
-        {applying ? (
-          <button type="button" onClick={onCancel} className="btn-secondary !min-h-10 text-xs">
-            Cancel rewrite
+      {workspaceOnly ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Link href="/" prefetch={false} className="btn-primary !min-h-10 !px-4 text-xs">Use on image workspace</Link>
+          <span className="text-[11px] font-medium text-slate-500">The workspace action applies these settings to selected files.</span>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onApplySelected}
+            disabled={!canApply || selectedCount === 0}
+            data-testid="rewrite-apply-selected"
+            className="btn-success !min-h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+            title={!user ? "Sign in to apply a profile." : `Apply to ${selectedCount} selected file(s).`}
+          >
+            {applying ? "Rewriting…" : `Apply profile to selected (${selectedCount})`}
           </button>
-        ) : null}
-      </div>
-      {progress ? <p role="status" className="mt-2 text-xs text-slate-600">{progress}</p> : null}
+          <button
+            type="button"
+            onClick={onApplyAll}
+            disabled={!canApply}
+            data-testid="rewrite-apply-all"
+            className="btn-secondary !min-h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+            title={!user ? "Sign in to apply a profile." : `Apply to ${eligibleCount} eligible file(s).`}
+          >
+            {applying ? "Rewriting…" : `Apply profile to all eligible (${eligibleCount})`}
+          </button>
+          {applying ? (
+            <button type="button" onClick={onCancel} className="btn-secondary !min-h-10 text-xs">
+              Cancel rewrite
+            </button>
+          ) : null}
+        </div>
+      )}
+      {!workspaceOnly && progress ? <p role="status" className="mt-2 text-xs text-slate-600">{progress}</p> : null}
     </section>
   );
 }

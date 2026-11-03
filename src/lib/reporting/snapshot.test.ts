@@ -118,6 +118,85 @@ describe("buildReportSnapshot", () => {
     expect(snapshot.records[0]?.startedAt).toBe("");
     expect(snapshot.records[0]?.durationMs).toBe("");
   });
+
+  // ---- SOL-010: media-accurate reports ----
+  it("SOL-010: inspection-only rows are labeled inspect, never clean; unprocessed rows are none", () => {
+    const inspected = minimalEntry("inspected.jpg");
+    const untouched = minimalEntry("untouched.jpg");
+    const snapshot = snapshotFor({
+      entries: [inspected, untouched],
+      inspections: { [inspected.item.id]: minimalInspection({ fileId: inspected.item.id }) },
+    });
+    expect(snapshot.records[0]?.requestedOperation).toBe("inspect");
+    expect(snapshot.records[0]?.overallStatus).toBe("not_processed");
+    expect(snapshot.records[1]?.requestedOperation).toBe("none");
+  });
+
+  it("SOL-010: C2PA before/after are separate states, not one duplicated combined value", () => {
+    const entry = minimalEntry("c2pa.jpg");
+    const before = minimalInspection({
+      fileId: entry.item.id,
+      categories: [{ category: "C2PA manifest store", status: "detected", tags: [], warnings: [] }],
+    });
+    const after = minimalInspection({
+      fileId: entry.item.id,
+      categories: [{ category: "C2PA manifest store", status: "not_detected", tags: [], warnings: [] }],
+    });
+    const snapshot = snapshotFor({
+      entries: [entry],
+      inspections: { [entry.item.id]: before },
+      cleanings: { [entry.item.id]: minimalCleaning({ fileId: entry.item.id, after }) },
+    });
+    expect(snapshot.records[0]?.c2paBefore).toBe("detected");
+    expect(snapshot.records[0]?.c2paAfter).toBe("not_detected");
+    expect(snapshot.records[0]?.c2paBefore).not.toBe(snapshot.records[0]?.c2paAfter);
+    expect(snapshot.records[0]?.c2paState).toBe("detected → not_detected");
+  });
+
+  it("SOL-010: MP3 rows carry ID3 versions, audio operation and MPEG payload preservation", () => {
+    const entry = minimalEntry("song.mp3", 12000, "audio");
+    const id3Before = minimalInspection({
+      fileId: entry.item.id,
+      categories: [{ category: "ID3v2.3 tags", status: "detected", tags: [], warnings: [] }],
+    });
+    const snapshot = snapshotFor({
+      entries: [entry],
+      inspections: { [entry.item.id]: id3Before },
+      cleanings: {
+        [entry.item.id]: minimalCleaning({
+          fileId: entry.item.id,
+          status: "verified_clean",
+          changes: [{ group: "ID3", action: "removed", verification: "verified", before: "tag", after: "" }],
+        }),
+      },
+    });
+    const record = snapshot.records[0];
+    expect(record?.audioId3Before).toContain("ID3v2.3");
+    expect(record?.audioOperation).toBe("full-clean");
+    expect(record?.mpegPayloadPreserved).toBe("yes");
+    // GPS is N/A for audio (no GPS group in an audio inspection).
+    expect(record?.gpsBefore).toBe("not_inspected");
+    // The verification method names the exact byte comparison.
+    expect(record?.verificationMethod).toMatch(/exact encoded payload byte comparison/);
+  });
+
+  it("SOL-010: failed audio runs report mpegPayloadPreserved=no, unverified runs not verified", () => {
+    const failed = minimalEntry("broken.mp3", 500, "audio");
+    const unverified = minimalEntry("maybe.mp3", 500, "audio");
+    const snapshot = snapshotFor({
+      entries: [failed, unverified],
+      inspections: {
+        [failed.item.id]: minimalInspection({ fileId: failed.item.id }),
+        [unverified.item.id]: minimalInspection({ fileId: unverified.item.id }),
+      },
+      cleanings: {
+        [failed.item.id]: minimalCleaning({ fileId: failed.item.id, status: "failed", errors: ["x"], output: undefined, outputBytes: undefined, outputName: undefined }),
+        [unverified.item.id]: minimalCleaning({ fileId: unverified.item.id, status: "not_verified", output: undefined, outputBytes: undefined, outputName: undefined }),
+      },
+    });
+    expect(snapshot.records[0]?.mpegPayloadPreserved).toBe("no");
+    expect(snapshot.records[1]?.mpegPayloadPreserved).toBe("not verified");
+  });
   it("sums bytes and archive membership honestly", () => {
     const a = minimalEntry("a.jpg", 1000);
     const b = minimalEntry("b.jpg", 2000);

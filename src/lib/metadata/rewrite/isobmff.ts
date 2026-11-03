@@ -11,11 +11,14 @@ import {
   type InfeEntry,
   type IrefEntry,
 } from "../clean/isobmff";
+import type { GpsEngineDirective } from "./gps";
+import { GPS_XMP_REMOVAL_QUERIES, toTiffDirective } from "./gps";
 import type { FieldWritePlan } from "./writes";
 import {
   buildTiff,
+  buildTiffWithGps,
   buildXmpPacket,
-  mergeXmpPacket,
+  editXmpPacket,
   parseTiff,
   type TiffWriteValue,
   type XmlCodec,
@@ -23,15 +26,20 @@ import {
 } from "./codecs";
 
 /**
- * ISOBMFF (AVIF/HEIC) profile-field writer (Phase 6).
+ * ISOBMFF (AVIF/HEIC) profile-field writer (Phase 6) with Screen 09 GPS
+ * support.
  *
  * Adds or merges standards-compliant metadata *items*: `Exif` (with the
  * `Exif\0\0` header writers emit) and `mime`/`application/rdf+xml` XMP.
- * New items get fresh ids, `iinf`/`iloc` are regenerated, `iref` gains a
- * `cdsc` link for new Exif items, and every offset is recomputed from the
- * final layout — the same full-rebuild discipline as the cleaner. Image
- * item payloads relocate verbatim; brands, `pitm`, `iprp`, `colr` and all
- * unrelated boxes survive in order.
+ * A GPS directive rebuilds the Exif item's TIFF through the GPS-aware
+ * codec (write: GPS IFD created or merged; remove: GPS IFD carved out of
+ * the existing Exif item; when no Exif item exists, removal is a no-op and
+ * writes create the item) and strips the standard XMP coordinate mirrors
+ * from an existing XMP item. New items get fresh ids, `iinf`/`iloc` are
+ * regenerated, `iref` gains a `cdsc` link for new Exif items, and every
+ * offset is recomputed from the final layout — the same full-rebuild
+ * discipline as the cleaner. Image item payloads relocate verbatim;
+ * brands, `pitm`, `iprp`, `colr` and all unrelated boxes survive in order.
  */
 
 const EXIF_HEADER = "Exif\0\0";
@@ -41,12 +49,29 @@ export type RewriteChannel = "created" | "merged" | "absent" | "unsupported";
 export interface IsobmffRewriteOutput {
   data: Uint8Array;
   warnings: string[];
-  detail: { exif: RewriteChannel; xmp: RewriteChannel };
+  detail: { exif: RewriteChannel; xmp: RewriteChannel; gps: RewriteChannel };
   skipped: Array<{ field: string; channel: string; reason: string }>;
 }
 
 function textBytes(text: string): Uint8Array {
   return new TextEncoder().encode(text);
+}
+
+/** Locate the "Exif\0\0" header inside an Exif item payload (offset 0 for
+ *  headerless writers, after a 4-byte BE TIFF-offset field for real HEIF
+ *  files). Returns −1 when neither shape is present. */
+function isobmffExifHeaderAt(payload: Uint8Array): number {
+  for (let at = 0; at <= Math.min(8, Math.max(0, payload.length - EXIF_HEADER.length)); at += 1) {
+    let matched = true;
+    for (let i = 0; i < EXIF_HEADER.length; i += 1) {
+      if (payload[at + i] !== EXIF_HEADER.charCodeAt(i)) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return at;
+  }
+  return -1;
 }
 
 export function writeIsobmffFields(
@@ -55,6 +80,7 @@ export function writeIsobmffFields(
   plans: FieldWritePlan[],
   xml: XmlCodec,
   replaceCleaned: Uint8Array | null,
+  gps?: GpsEngineDirective,
 ): IsobmffRewriteOutput {
   const warnings: string[] = [];
   const skipped: IsobmffRewriteOutput["skipped"] = [];
@@ -62,6 +88,8 @@ export function writeIsobmffFields(
   // original bytes are edited in place (update mode preserves everything).
   const base = replaceCleaned ?? input;
   const layout = validateStillLayout(base, kind);
+  const gpsTiff = gps ? toTiffDirective(gps) : null;
+  const xmpRemovals = gps?.op === "remove" ? GPS_XMP_REMOVAL_QUERIES : [];
 
   const exifWrites: TiffWriteValue[] = [];
   const xmpProps: XmpProperty[] = [];
@@ -80,6 +108,7 @@ export function writeIsobmffFields(
   const detail: IsobmffRewriteOutput["detail"] = {
     exif: exifWrites.length === 0 ? "absent" : "unsupported",
     xmp: xmpProps.length === 0 ? "absent" : "unsupported",
+    gps: gps ? "unsupported" : "absent",
   };
 
   const ilocById = new Map(layout.iloc.items.map((item) => [item.itemId, item]));
@@ -111,63 +140,89 @@ export function writeIsobmffFields(
   }
   const pending: PendingItem[] = [];
 
-  if (exifWrites.length > 0) {
+  if (exifWrites.length > 0 || gps) {
     if (exifEntry) {
       const current = payloadOf(exifEntry.itemId);
       if (!current || current.length < EXIF_HEADER.length + 8) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing Exif item is unreadable; refusing to rewrite it." });
+        if (gps) detail.gps = "unsupported";
       } else {
-        const header = new TextDecoder("latin1").decode(current.slice(0, 6));
-        if (header !== EXIF_HEADER) {
+        // Real HEIF-family files carry an optional 4-byte TIFF-header offset
+        // before the "Exif\0\0" header (offset 6 = header size). Locate the
+        // header instead of assuming position 0 so merged rewrites keep the
+        // file's own prefix bytes verbatim.
+        const headerAt = isobmffExifHeaderAt(current);
+        if (headerAt < 0) {
           for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing Exif item has an unexpected header; refusing to rewrite it." });
+          if (gps) detail.gps = "unsupported";
         } else {
-          const parsed = parseTiff(current.slice(6));
+          const parsed = parseTiff(current.slice(headerAt + EXIF_HEADER.length));
           if (!parsed) {
             for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "Existing Exif TIFF is malformed; refusing to rewrite it." });
+            if (gps) detail.gps = "unsupported";
           } else {
-            const merged = buildTiff(parsed, exifWrites, parsed.little);
+            const merged = gpsTiff
+              ? buildTiffWithGps(parsed, exifWrites, gpsTiff, parsed.little)
+              : buildTiff(parsed, exifWrites, parsed.little);
             if (!merged) {
               for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF merge failed value encoding." });
+              if (gps) detail.gps = "unsupported";
             } else {
               pending.push({
                 itemId: exifEntry.itemId,
                 entry: exifEntry,
-                payload: concatBytes([textBytes(EXIF_HEADER), merged]),
+                payload: concatBytes([current.slice(0, headerAt + EXIF_HEADER.length), merged]),
                 mode: "merged",
               });
-              detail.exif = "merged";
+              if (exifWrites.length > 0) detail.exif = "merged";
+              if (gps) detail.gps = "merged";
             }
           }
         }
       }
+    } else if (gpsTiff?.op === "remove") {
+      // No Exif item: no ISOBMFF-embedded EXIF GPS exists to remove; nothing
+      // is created and the removal claim is settled by output verification.
+      detail.gps = "absent";
     } else {
-      const built = buildTiff(null, exifWrites, true);
+      const built = gpsTiff
+        ? buildTiffWithGps(null, exifWrites, gpsTiff, true)
+        : buildTiff(null, exifWrites, true);
       if (!built) {
         for (const field of exifFields) skipped.push({ field, channel: "EXIF", reason: "EXIF value encoding failed." });
+        if (gps) detail.gps = "unsupported";
       } else {
         const itemId = maxId + 1;
+        // HEIF Exif item layout: 4-byte BE offset (6 = header length) + header + TIFF.
+        const offsetField = new Uint8Array(4);
+        new DataView(offsetField.buffer).setUint32(0, EXIF_HEADER.length);
         pending.push({
           itemId,
           entry: { itemId, itemType: "Exif", itemName: "", contentType: "", version: 2 },
-          payload: concatBytes([textBytes(EXIF_HEADER), built]),
+          payload: concatBytes([offsetField, textBytes(EXIF_HEADER), built]),
           mode: "created",
         });
-        detail.exif = "created";
+        if (exifWrites.length > 0) detail.exif = "created";
+        if (gps) detail.gps = "created";
       }
     }
   }
 
-  if (xmpProps.length > 0) {
+  if (xmpProps.length > 0 || xmpRemovals.length > 0) {
     if (xmpEntry) {
       const current = payloadOf(xmpEntry.itemId);
       const text = current ? new TextDecoder("utf-8", { fatal: false }).decode(current) : null;
-      const merged = text === null ? null : mergeXmpPacket(text, xmpProps, xml);
-      if (merged === null) {
+      const merged = text === null ? null : editXmpPacket(text, xmpProps, xmpRemovals, xml);
+      if (merged === null || merged === "") {
         for (const field of xmpFields) skipped.push({ field, channel: "XMP", reason: "Existing XMP item is missing or not parseable XML; refusing to rewrite it." });
+        if (xmpRemovals.length > 0) detail.gps = "unsupported";
       } else {
         pending.push({ itemId: xmpEntry.itemId, entry: xmpEntry, payload: textBytes(merged), mode: "merged" });
-        detail.xmp = "merged";
+        if (xmpProps.length > 0) detail.xmp = "merged";
       }
+    } else if (xmpRemovals.length > 0 && xmpProps.length === 0) {
+      // No XMP item present: no XMP coordinates exist to remove. Nothing is
+      // created; the removal claim is settled by output verification.
     } else {
       const packet = buildXmpPacket(xmpProps);
       const itemId = maxId + (pending.length > 0 ? 2 : 1);
@@ -199,12 +254,12 @@ export function writeIsobmffFields(
     }
     const ilocItem = ilocLookup.get(entry.itemId);
     if (!ilocItem || ilocItem.extents.length === 0) {
-      return { data: base.slice(), warnings: [...warnings, `Kept item ${entry.itemId} has no extents; rebuild refused.`], detail: { exif: "unsupported", xmp: "unsupported" }, skipped };
+      return { data: base.slice(), warnings: [...warnings, `Kept item ${entry.itemId} has no extents; rebuild refused.`], detail: { exif: "unsupported", xmp: "unsupported", gps: "unsupported" }, skipped };
     }
     const parts: Uint8Array[] = [];
     for (const extent of ilocItem.extents) {
       if (extent.offset < 0 || extent.length <= 0 || extent.offset + extent.length > base.length) {
-        return { data: base.slice(), warnings: [...warnings, `Item ${entry.itemId} extent out of bounds; rebuild refused.`], detail: { exif: "unsupported", xmp: "unsupported" }, skipped };
+        return { data: base.slice(), warnings: [...warnings, `Item ${entry.itemId} extent out of bounds; rebuild refused.`], detail: { exif: "unsupported", xmp: "unsupported", gps: "unsupported" }, skipped };
       }
       parts.push(base.subarray(extent.offset, extent.offset + extent.length));
     }
@@ -256,7 +311,7 @@ export function writeIsobmffFields(
   const finalChildren = metaChildrenParts.map((part) => (part.type === "iloc" ? finalIloc : part.bytes));
   const finalMeta = fullBox("meta", fullVersion(layout.meta.payload), 0, concatBytes(finalChildren));
   if (finalMeta.length !== metaSizeWithPlaceholder) {
-    return { data: base.slice(), warnings: [...warnings, "Rebuilt meta size drifted; refusing inconsistent output."], detail: { exif: "unsupported", xmp: "unsupported" }, skipped };
+    return { data: base.slice(), warnings: [...warnings, "Rebuilt meta size drifted; refusing inconsistent output."], detail: { exif: "unsupported", xmp: "unsupported", gps: "unsupported" }, skipped };
   }
   const finalMdat = sizedBox("mdat", concatBytes(mdatPlan.map((p) => p.payload)));
   const outParts: Uint8Array[] = [];

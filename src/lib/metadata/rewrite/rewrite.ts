@@ -14,14 +14,23 @@ import {
   type CleaningPolicy,
   type MetadataChange,
 } from "../clean/types";
-import { observeFieldValues } from "./verify-fields";
+import { observeFieldValues, observeGps } from "./verify-fields";
 import { planFieldWrite, type FieldWritePlan } from "./writes";
+import { verifyRewrittenAudio } from "../audio/rewrite-verify";
+import { blankProfile } from "./fields";
 import type { ProfileField, MetadataProfile } from "./fields";
 import { writeIsobmffFields } from "./isobmff";
 import { writeJpegFields } from "./jpeg";
 import { writePngFields } from "./png";
 import { writeWebpFields } from "./webp";
 import type { XmlCodec } from "./codecs";
+import type { GpsCoordinates, GpsEngineDirective } from "./gps";
+import {
+  GPS_VERIFY_TOLERANCE_DEGREES,
+  GPS_VERIFY_TOLERANCE_METERS,
+  formatAltitude,
+  formatCoordinate,
+} from "./gps";
 
 /**
  * Verified image rewriting (Phase 6).
@@ -95,6 +104,10 @@ export interface RewriteVerifyInput {
   maxBytes?: number;
   inputWarnings?: string[];
   inspectOutput?: typeof inspectImage;
+  /** Screen 09 GPS directive (write or remove). Requires policy awareness:
+   *  in replace mode the cleaner already strips EXIF, so GPS writes land on
+   *  cleaned bytes and removals are inherently covered (still verified). */
+  gps?: GpsEngineDirective;
 }
 
 export const DEFAULT_REWRITE_MAX_BYTES = 64 * 1024 * 1024;
@@ -231,7 +244,35 @@ function keywordsEqual(wanted: string[], observed: string[]): boolean {
   return a.every((value, index) => value === b[index]);
 }
 
+/** MP3 verifier input: rebuild the profile-shaped values from `expected`. */
+function expectedProfileOf(input: RewriteVerifyInput): MetadataProfile {
+  const profile = blankProfile();
+  for (const [field, entry] of Object.entries(input.expected)) {
+    if (!entry) continue;
+    const typed = field as ProfileField;
+    if (typed === "keywords") profile.keywordsList = [...entry.keywords];
+    profile[typed] = entry.value;
+  }
+  return profile;
+}
+
 export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<FileRewriteResult> {
+  // Phase 10: audio files take the MP3 rewrite verifier (same result
+  // shape, same fail-closed contract; the image planner never runs).
+  if (input.kind === "mp3-audio") {
+    return verifyRewrittenAudio({
+      fileId: input.fileId,
+      inputName: input.inputName,
+      extension: input.extension,
+      kind: input.kind,
+      inputBytes: input.inputBytes,
+      before: input.before,
+      profile: expectedProfileOf(input),
+      selectedFields: input.plans.map((plan) => plan.field),
+      mode: input.mode,
+      policy: input.policy,
+    });
+  }
   const { fileId, inputName, extension, kind, brand, inputBytes, before, plans, expected, mode } = input;
   const policy = input.policy ?? PRIVACY_SAFE_DEFAULT;
   const warnings: string[] = [...(input.inputWarnings ?? [])];
@@ -259,11 +300,22 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
       `Input is ${inputBytes.length} bytes — above the ${input.maxBytes ?? DEFAULT_REWRITE_MAX_BYTES}-byte in-browser rewrite budget. Declining rather than transforming blindly.`,
     ]);
   }
-  if (plans.length === 0) {
+  if (plans.length === 0 && !input.gps) {
     return fail("failed", ["No profile fields were selected (or all selected fields are blank) — nothing to rewrite."]);
   }
   if (kind !== "jpeg" && kind !== "png" && kind !== "webp" && kind !== "avif" && kind !== "heic" && kind !== "heif-generic") {
     return fail("unsupported", [`${kind} containers are not supported for metadata rewriting (still images only).`]);
+  }
+
+  // Screen 09 honesty gate: "Remove GPS location" against an input whose
+  // inspection shows no GPS evidence would manufacture a change; refuse.
+  if (input.gps?.op === "remove") {
+    const gpsCategory = before.categories.find((category) => category.category === "GPS");
+    if (gpsCategory && (gpsCategory.status === "not_detected" || gpsCategory.status === "not_inspected")) {
+      return fail("unchanged_no_target_tags", [
+        "No GPS coordinates were found in this image — there is nothing to remove. No output was created.",
+      ]);
+    }
   }
 
   let xml: XmlCodec;
@@ -294,20 +346,20 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
     }
   }
 
-  // 2. Write per format (merge semantics; writers never delete).
+  // 2. Write per format (merge semantics; writers never delete by default).
   let written: Uint8Array;
   let writeWarnings: string[] = [];
   let skipped: Array<{ field: string; channel: string; reason: string }> = [];
   let detailNote = "";
   try {
     if (kind === "jpeg") {
-      const out = writeJpegFields(baseBytes, plans, xml);
+      const out = writeJpegFields(baseBytes, plans, xml, input.gps);
       written = out.data;
       writeWarnings = out.warnings;
       skipped = out.skipped;
-      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp} IPTC:${out.detail.iptc}`;
+      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp} IPTC:${out.detail.iptc} GPS:${out.detail.gps}`;
     } else if (kind === "png") {
-      const out = writePngFields(baseBytes, plans, xml);
+      const out = writePngFields(baseBytes, plans, xml, input.gps);
       written = out.data;
       writeWarnings = out.warnings;
       skipped = [...out.skipped];
@@ -317,9 +369,9 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
           skipped.push({ field: plan.field, channel: `IPTC:${dataset.record}:${dataset.dataset}`, reason: "PNG has no standard IPTC-IIM home; value carried in EXIF/XMP only." });
         }
       }
-      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp}`;
+      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp} GPS:${out.detail.gps}`;
     } else if (kind === "webp") {
-      const out = writeWebpFields(baseBytes, plans, xml);
+      const out = writeWebpFields(baseBytes, plans, xml, input.gps);
       written = out.data;
       writeWarnings = out.warnings;
       skipped = [...out.skipped];
@@ -328,9 +380,9 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
           skipped.push({ field: plan.field, channel: `IPTC:${dataset.record}:${dataset.dataset}`, reason: "WebP has no standard IPTC-IIM home; value carried in EXIF/XMP only." });
         }
       }
-      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp}`;
+      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp} GPS:${out.detail.gps}`;
     } else {
-      const out = writeIsobmffFields(baseBytes, kind === "avif" ? "avif" : "heic", plans, xml, null);
+      const out = writeIsobmffFields(baseBytes, kind === "avif" ? "avif" : "heic", plans, xml, null, input.gps);
       written = out.data;
       writeWarnings = out.warnings;
       skipped = [...out.skipped];
@@ -339,7 +391,7 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
           skipped.push({ field: plan.field, channel: `IPTC:${dataset.record}:${dataset.dataset}`, reason: "AVIF/HEIC never carry legacy IPTC-IIM; value carried in EXIF/XMP only." });
         }
       }
-      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp}`;
+      detailNote = `EXIF:${out.detail.exif} XMP:${out.detail.xmp} GPS:${out.detail.gps}`;
     }
   } catch (error) {
     if (error instanceof CleanRefused) {
@@ -526,6 +578,74 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
     }
   }
 
+  // 7b. Screen 09 GPS verification — the output bytes are the only witness.
+  let gpsVerifiedCount = 0;
+  let gpsFailureCount = 0;
+  if (input.gps) {
+    const observed = observeGps(written, kind, xml);
+    const beforeGps = before.categories.find((category) => category.category === "GPS");
+    const beforeSummary = beforeGps?.tags.find((tag) => tag.key === "Latitude")?.displayedValue
+      && beforeGps?.tags.find((tag) => tag.key === "Longitude")?.displayedValue
+      ? `${beforeGps.tags.find((tag) => tag.key === "Latitude")?.displayedValue}, ${beforeGps.tags.find((tag) => tag.key === "Longitude")?.displayedValue}`
+      : "none detected";
+    if (input.gps.op === "write") {
+      const want = input.gps.coords as GpsCoordinates | undefined;
+      if (!want) {
+        gpsFailureCount += 1;
+        changes.push({ group: "GPS", key: "GPS coordinates", action: "rewritten", verification: "failed", reason: "A GPS write was requested without coordinates — internal planning error; nothing is claimed." });
+      } else {
+        const latOk = observed.latitude !== null && Math.abs(observed.latitude - want.latitude) <= GPS_VERIFY_TOLERANCE_DEGREES;
+        const lonOk = observed.longitude !== null && Math.abs(observed.longitude - want.longitude) <= GPS_VERIFY_TOLERANCE_DEGREES;
+        const refOk = (observed.latRef === null || observed.latRef === (want.latitude >= 0 ? "N" : "S")) && (observed.lonRef === null || observed.lonRef === (want.longitude >= 0 ? "E" : "W"));
+        const altOk = want.altitude === null || (observed.altitude !== null && Math.abs(observed.altitude - want.altitude) <= GPS_VERIFY_TOLERANCE_METERS);
+        const afterSummary = `${formatCoordinate(observed.latitude ?? want.latitude, "lat")}, ${formatCoordinate(observed.longitude ?? want.longitude, "lon")}${observed.altitude !== null ? `, alt ${formatAltitude(observed.altitude)} m` : ""}`;
+        if (observed.unreadable) {
+          gpsFailureCount += 1;
+          changes.push({ group: "GPS", key: "GPS coordinates", action: "rewritten", before: beforeSummary, verification: "failed", reason: "The output's GPS tags are present but unreadable — refusing to confirm the write." });
+        } else if (latOk && lonOk && refOk && altOk) {
+          gpsVerifiedCount += 1;
+          changes.push({ group: "GPS", key: "GPS coordinates (EXIF GPS IFD)", action: "rewritten", before: beforeSummary, after: afterSummary, verification: "verified", reason: "Re-read from the output's EXIF GPS IFD within the tested 1e-6-degree tolerance; format and payload invariants hold." });
+          for (const retainedXmp of observed.xmpCoordinates) {
+            changes.push({ group: "GPS", key: retainedXmp, action: "retained_unsupported", verification: "verified", reason: "Coordinate-bearing XMP mirror remains (GPS writes deliberately touch EXIF only; update mode preserves unrelated metadata) — disclosed, not claimed dismissed." });
+          }
+          if (want.altitude === null && observed.altitude !== null) {
+            changes.push({ group: "GPS", key: "Altitude (existing)", action: "retained_unsupported", verification: "verified", reason: `No altitude was requested; an existing value (${formatAltitude(observed.altitude)} m) stays as-is — never silently cleared.` });
+          }
+        } else {
+          gpsFailureCount += 1;
+          const mismatch = !latOk || !lonOk
+            ? "latitude/longitude"
+            : !altOk
+              ? "altitude"
+              : "hemisphere reference tags";
+          changes.push({ group: "GPS", key: "GPS coordinates", action: "rewritten", before: beforeSummary, after: afterSummary, verification: "failed", reason: `Requested ${mismatch} were not re-observed in the output within tolerance — download withheld.` });
+        }
+      }
+    } else {
+      // Removal: verified only when the EXIF GPS IFD is gone AND no
+      // coordinate-bearing XMP property remains.
+      const exifGone = !observed.unreadable && observed.latitude === null && observed.longitude === null;
+      const retainedEvidence = [...observed.xmpCoordinates];
+      if (observed.unreadable) {
+        gpsFailureCount += 1;
+        changes.push({ group: "GPS", key: "GPS coordinates", action: "removed", before: beforeSummary, verification: "failed", reason: "The output's GPS tags are present but unreadable — the removal cannot be confirmed." });
+      } else if (exifGone && retainedEvidence.length === 0) {
+        gpsVerifiedCount += 1;
+        changes.push({ group: "GPS", key: "GPS coordinates (EXIF GPS IFD + XMP mirrors)", action: "removed", before: beforeSummary, after: "none observed", verification: "verified", reason: "Re-observed the output: EXIF GPS IFD absent and no standard XMP coordinate mirror remains." });
+      } else if (exifGone) {
+        gpsVerifiedCount += 1;
+        gpsFailureCount += 1;
+        changes.push({ group: "GPS", key: "GPS coordinates (EXIF GPS IFD)", action: "removed", before: beforeSummary, verification: "verified", reason: "EXIF GPS IFD no longer present in the output." });
+        for (const retainedXmp of retainedEvidence) {
+          changes.push({ group: "GPS", key: retainedXmp, action: "retained_unsupported", verification: "not_verified", reason: "Coordinate-bearing XMP location evidence remains — GPS removal is incomplete, not silently reported complete." });
+        }
+      } else {
+        gpsFailureCount += 1;
+        changes.push({ group: "GPS", key: "GPS coordinates", action: "removed", before: beforeSummary, verification: "failed", reason: "Coordinate values remain in the output after the removal request — GPS removal could not be confirmed." });
+      }
+    }
+  }
+
   // Carry cleaning evidence for replace mode (removal proof, not rewritten).
   const carried: MetadataChange[] = mode === "replace_editable"
     ? cleaningChanges.map((c) => ({ ...c }))
@@ -561,9 +681,11 @@ export async function verifyRewrittenImage(input: RewriteVerifyInput): Promise<F
 
   // 9. Status: fail-closed. No verified badge unless every supported field verified.
   let status: RewriteStatus;
+  verifiedCount += gpsVerifiedCount;
+  if (gpsFailureCount > 0) hasFailure = true;
   if (verifiedCount === 0) {
     status = "failed";
-    errors.push("None of the requested fields could be verified in the output — download withheld.");
+    errors.push("None of the requested changes could be verified in the output — download withheld.");
   } else if (hasFailure || (mode === "replace_editable" && cleaningCoverageLimited)) {
     status = "partially_rewritten";
   } else {

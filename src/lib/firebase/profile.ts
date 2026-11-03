@@ -20,7 +20,13 @@ function assertUid(uid: string): void {
   if (!uid || uid.length > 128) throw new Error("Invalid user id.");
 }
 
-export async function loadProfile(uid: string): Promise<MetadataProfile | null> {
+export interface LoadedProfile {
+  profile: MetadataProfile;
+  /** Firestore server timestamp of the last confirmed save, if present. */
+  updatedAt: string | null;
+}
+
+export async function loadProfile(uid: string): Promise<LoadedProfile | null> {
   assertUid(uid);
   const db = await getFirebaseDb();
   const { doc, getDoc } = await import("firebase/firestore");
@@ -30,7 +36,14 @@ export async function loadProfile(uid: string): Promise<MetadataProfile | null> 
   const data = snapshot.data() as Record<string, unknown>;
   const { profile, errors } = validateProfile(data);
   if (Object.keys(errors).length > 0) return null;
-  return profile;
+  const updatedAtRaw = data.updatedAt;
+  let updatedAt: string | null = null;
+  if (updatedAtRaw && typeof updatedAtRaw === "object" && "toDate" in updatedAtRaw && typeof updatedAtRaw.toDate === "function") {
+    updatedAt = (updatedAtRaw.toDate() as Date).toISOString();
+  } else if (typeof updatedAtRaw === "string") {
+    updatedAt = updatedAtRaw;
+  }
+  return { profile, updatedAt };
 }
 
 function toStoredFields(profile: MetadataProfile): Record<string, unknown> {
