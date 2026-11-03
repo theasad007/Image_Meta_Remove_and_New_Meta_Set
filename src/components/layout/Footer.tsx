@@ -47,9 +47,19 @@ export default function Footer() {
 
         <div className="mt-7 flex flex-col gap-3 border-t border-white/10 pt-5 text-xs leading-6 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-2xl">
-            Supported formats: JPEG, PNG, WebP, AVIF and supported HEIC still layouts can be inspected and cleaned locally. MP4, MOV and WebM open as previews only; video metadata tools, GPS coordinate editing and visual AI detection are not available.
+            Supported formats: JPEG, PNG, WebP, AVIF and supported HEIC still layouts can be inspected and cleaned locally. MP3 files can be inspected, cleaned and rewritten locally. MP4, MOV and WebM open as previews only; video metadata tools, GPS coordinate editing and visual AI detection are not available.
           </p>
-          <p className="shrink-0 sm:text-right">© {new Date().getFullYear()} Private Metadata Cleaner</p>
+          <p className="shrink-0 sm:text-right">
+            © 2026 Private Metadata Cleaner by{" "}
+            <a
+              href="https://techpeakssolutions.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-slate-300 underline-offset-2 hover:text-white hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300"
+            >
+              TechPeaks Solutions
+            </a>
+          </p>
         </div>
       </div>
     </footer>
