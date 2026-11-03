@@ -8,16 +8,8 @@ import type { EntitlementView } from "../../lib/firebase/entitlement";
 
 export type ProfileSection = "editor" | "projects" | "preferences" | "account" | "security";
 
-const SECTION_TARGETS: Record<ProfileSection, string> = {
-  editor: "profile-editor",
-  projects: "projects",
-  preferences: "rewrite-preferences",
-  account: "connected-account",
-  security: "security-privacy",
-};
-
-/** In-page profile navigation (approved reference). Sections are real,
- *  on-page parts of this screen — never separate fake pages. */
+/** State-driven profile navigation (approved reference). Sections are real,
+ *  on-page panels of this screen — never separate fake pages. */
 const NAV_ITEMS: Array<{ id: ProfileSection; label: string; icon: React.ReactNode }> = [
   {
     id: "editor",
@@ -83,7 +75,7 @@ function initialsOf(user: { displayName: string | null; email: string | null }):
  * Screen 07 left column: real Firebase Auth identity (photo, display name,
  * email) with a working sign-out, honest suspension copy, the superadmin
  * dashboard shortcut when the custom claim is present, and the section
- * navigation that scrolls/focuses real sections of this page.
+ * navigation that switches the visible panel without leaving this page.
  */
 export default function AccountSidebar({
   user,
@@ -108,16 +100,6 @@ export default function AccountSidebar({
   const [photoFailed, setPhotoFailed] = useState(false);
   const [busy, setBusy] = useState<"idle" | "signout" | "refresh">("idle");
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const goTo = (section: ProfileSection) => {
-    onActive(section);
-    const target = document.getElementById(SECTION_TARGETS[section]);
-    if (target) {
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-      target.querySelector<HTMLElement>("[data-section-heading]")?.focus({ preventScroll: true });
-    }
-  };
 
   const handleSignOut = async () => {
     setBusy("signout");
@@ -156,7 +138,7 @@ export default function AccountSidebar({
 
   return (
     <div className="grid content-start gap-4">
-      <section id="connected-account" aria-labelledby="account-heading" className="surface-card scroll-mt-24 rounded-[1.4rem] p-4 sm:p-5">
+      <section id="connected-account" aria-labelledby="account-heading" className="surface-card rounded-[1.4rem] p-4 sm:p-5">
         <div data-testid="auth-account" className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e9f2fe] text-sm font-extrabold text-[#2d5be9]">
             {showPhoto ? (
@@ -235,7 +217,9 @@ export default function AccountSidebar({
               <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => goTo(item.id)}
+                  id={`profile-nav-${item.id}`}
+                  onClick={() => onActive(item.id)}
+                  aria-controls={`profile-panel-${item.id}`}
                   aria-current={isActive ? "true" : undefined}
                   data-testid={`profile-nav-${item.id}`}
                   className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold focus-visible:outline-3 focus-visible:outline-[#2d5be9] ${

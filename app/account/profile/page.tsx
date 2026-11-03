@@ -53,6 +53,7 @@ export default function ProfilePage() {
   const [notice, setNotice] = useState("");
   /** Monotonic guard: every auth transition invalidates older async loads. */
   const loadSeqRef = useRef(0);
+  const previousSectionRef = useRef<ProfileSection | null>(null);
 
   useEffect(() => {
     const settings = readRewriteSettings();
@@ -87,6 +88,7 @@ export default function ProfilePage() {
         return;
       }
       setAuthUi("signed-in");
+      setActiveSection("editor");
       // The previous account's (or the signed-out blank) values must never
       // be shown while this account's real profile is loading.
       setProfile(blankProfile());
@@ -176,6 +178,20 @@ export default function ProfilePage() {
 
   const signedIn = user !== null;
 
+  useEffect(() => {
+    if (previousSectionRef.current === null) {
+      previousSectionRef.current = activeSection;
+      return;
+    }
+    if (previousSectionRef.current === activeSection) return;
+    previousSectionRef.current = activeSection;
+    const frame = window.requestAnimationFrame(() => {
+      const panel = document.getElementById(`profile-panel-${activeSection}`);
+      panel?.querySelector<HTMLElement>("[data-section-heading]")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSection]);
+
   return (
     <>
       <a href="#profile-main" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white focus:translate-y-0">
@@ -213,10 +229,10 @@ export default function ProfilePage() {
 
         {signedIn && user ? (
           <>
-            {/* The editor is the dominant column; side columns stay wide
-                enough for their content (minmax(0,…) prevents overflow). */}
-            <div className="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_minmax(0,17.5rem)]">
-              <div className="min-w-0 lg:row-span-2">
+            {/* The sidebar keeps its approved visual treatment while the
+                adjacent area renders exactly one state-driven panel. */}
+            <div className="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+              <div className="min-w-0">
                 <AccountSidebar
                   user={user}
                   superadmin={superadmin}
@@ -229,56 +245,127 @@ export default function ProfilePage() {
                 />
               </div>
               <div className="min-w-0">
-                <ProfileEditor
-                  user={user}
-                  suspended={suspended}
-                  profile={profile}
-                  dirty={dirty}
-                  savedSnapshot={savedSnapshot}
-                  savedUpdatedAt={savedUpdatedAt}
-                  onProfileChange={setProfile}
-                  onProfileSaved={handleProfileSaved}
-                  onProfileDeleted={handleProfileDeleted}
-                  onNotice={setNotice}
-                />
-              </div>
-              <div className="min-w-0">
-                <ProfilePreviewCard profile={profile} dirty={dirty} hasSavedDoc={savedSnapshot !== null} />
-              </div>
-            </div>
+                <div
+                  id="profile-panel-editor"
+                  role="region"
+                  aria-labelledby="profile-nav-editor"
+                  data-profile-panel="editor"
+                  hidden={activeSection !== "editor"}
+                  aria-hidden={activeSection !== "editor"}
+                >
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,17.5rem)]">
+                    <ProfileEditor
+                      user={user}
+                      suspended={suspended}
+                      profile={profile}
+                      dirty={dirty}
+                      savedSnapshot={savedSnapshot}
+                      savedUpdatedAt={savedUpdatedAt}
+                      onProfileChange={setProfile}
+                      onProfileSaved={handleProfileSaved}
+                      onProfileDeleted={handleProfileDeleted}
+                      onNotice={setNotice}
+                    />
+                    <ProfilePreviewCard profile={profile} dirty={dirty} hasSavedDoc={savedSnapshot !== null} />
+                  </div>
+                </div>
 
-            {/* Rewrite preferences: the existing two engine modes + field
-                selection, persisted through the app's existing settings store. */}
-            <div id="rewrite-preferences" className="mt-5 scroll-mt-24">
-              <RewritePanel
-                user={user}
-                profileValues={profile as unknown as Record<string, unknown>}
-                mode={rewriteMode}
-                selectedFields={rewriteFields}
-                eligibleCount={0}
-                selectedCount={0}
-                applying={false}
-                progress={null}
-                workspaceOnly
-                onMode={updateRewriteMode}
-                onToggleField={toggleRewriteField}
-                onApplySelected={() => setNotice("Return to the image workspace to apply your saved profile.")}
-                onApplyAll={() => setNotice("Return to the image workspace to apply your saved profile.")}
-                onCancel={() => undefined}
-              />
-            </div>
+                <section
+                  id="profile-panel-account"
+                  role="region"
+                  aria-labelledby="profile-nav-account"
+                  data-profile-panel="account"
+                  hidden={activeSection !== "account"}
+                  aria-hidden={activeSection !== "account"}
+                  data-testid="connected-account-panel"
+                  className="surface-card rounded-[1.4rem] p-4 sm:p-6"
+                >
+                  <div className="flex items-start gap-3">
+                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e9f2fe] text-[#2d5be9]">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.5 13.5l3-3M9 15l-2.6 2.6a3.2 3.2 0 0 1-4.5-4.5L4.5 10.5M15 9l2.6-2.6a3.2 3.2 0 0 1 4.5 4.5L19.5 13.5" />
+                      </svg>
+                    </span>
+                    <div>
+                      <h2 id="connected-account-heading" data-section-heading tabIndex={-1} className="text-lg font-bold text-[#16244a]">Connected Account</h2>
+                      <p className="mt-0.5 text-[12.5px] text-[#5a6b85]">Your Google sign-in identity and account directory details.</p>
+                    </div>
+                  </div>
+                  <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-[#e6ebf3] bg-[#fbfcfe] p-3">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#71809a]">Display name</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-[#16244a]">{user.displayName?.trim() || "Google account"}</dd>
+                    </div>
+                    <div className="rounded-xl border border-[#e6ebf3] bg-[#fbfcfe] p-3">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#71809a]">Email</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-[#16244a]">{user.email ?? "Not available"}</dd>
+                    </div>
+                    <div className="rounded-xl border border-[#e6ebf3] bg-[#fbfcfe] p-3 sm:col-span-2">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#71809a]">Firebase UID</dt>
+                      <dd className="mt-1 break-all font-mono text-xs font-semibold text-[#16244a]">{user.uid}</dd>
+                    </div>
+                  </dl>
+                  <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800">Google account connected. Sign-out and session refresh controls remain available in the account summary.</p>
+                </section>
 
-            {/* My Projects (Phase 04): Premium multi-project presets. Free
-                accounts keep their single reusable profile untouched. */}
-            <ProjectsPanel uid={user.uid} onNotice={setNotice} />
+                <div
+                  id="profile-panel-preferences"
+                  role="region"
+                  aria-labelledby="profile-nav-preferences"
+                  data-profile-panel="preferences"
+                  hidden={activeSection !== "preferences"}
+                  aria-hidden={activeSection !== "preferences"}
+                >
+                  {/* Existing rewrite settings remain mounted so unsaved
+                      control state survives navigation between panels. */}
+                  <div id="rewrite-preferences">
+                    <RewritePanel
+                      user={user}
+                      profileValues={profile as unknown as Record<string, unknown>}
+                      mode={rewriteMode}
+                      selectedFields={rewriteFields}
+                      eligibleCount={0}
+                      selectedCount={0}
+                      applying={false}
+                      progress={null}
+                      workspaceOnly
+                      onMode={updateRewriteMode}
+                      onToggleField={toggleRewriteField}
+                      onApplySelected={() => setNotice("Return to the image workspace to apply your saved profile.")}
+                      onApplyAll={() => setNotice("Return to the image workspace to apply your saved profile.")}
+                      onCancel={() => undefined}
+                    />
+                  </div>
+                </div>
 
-            {/* Security & Privacy: accurate statements about what is stored
-                and what local processing guarantees. */}
-            <section
-              id="security-privacy"
-              aria-labelledby="security-heading"
-              className="surface-card mt-5 scroll-mt-24 rounded-[1.4rem] p-4 sm:p-6"
-            >
+                <div
+                  id="profile-panel-projects"
+                  role="region"
+                  aria-labelledby="profile-nav-projects"
+                  data-profile-panel="projects"
+                  hidden={activeSection !== "projects"}
+                  aria-hidden={activeSection !== "projects"}
+                >
+                  {/* Premium gating and project CRUD stay inside the existing
+                      ProjectsPanel; only its visibility is state-driven. */}
+                  <ProjectsPanel uid={user.uid} onNotice={setNotice} />
+                </div>
+
+                <div
+                  id="profile-panel-security"
+                  role="region"
+                  aria-labelledby="profile-nav-security"
+                  data-profile-panel="security"
+                  hidden={activeSection !== "security"}
+                  aria-hidden={activeSection !== "security"}
+                >
+                  {/* Security & Privacy: accurate statements about what is
+                      stored and what local processing guarantees. */}
+                  <section
+                    id="security-privacy"
+                    aria-labelledby="security-heading"
+                    className="surface-card rounded-[1.4rem] p-4 sm:p-6"
+                  >
               <div className="flex items-start gap-3">
                 <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e9f2fe] text-[#2d5be9]">
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -323,7 +410,10 @@ export default function ProfilePage() {
                 Image inspection and rewriting run entirely in your browser. Every guest feature — inspection, cleaning,
                 bulk ZIP, CSV/PDF reports and single-image editing — works without an account as before.
               </p>
-            </section>
+                  </section>
+                </div>
+              </div>
+            </div>
           </>
         ) : null}
       </main>
