@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const DOC_SLUGS = [
   "quick-start", "supported-formats", "inspect-metadata", "ai-evidence",
   "clean-metadata", "bulk-cleaning", "rewrite-metadata", "gps-location",
-  "downloads-reports", "account-profile", "projects-premium",
+  "downloads-reports", "account-profile", "projects-premium", "mp3-audio",
   "privacy-security", "troubleshooting", "faq", "changelog",
 ];
 
@@ -15,6 +15,12 @@ test("Docs navigation, search, article routes, screenshots, and canonical metada
   await expect(page.getByRole("heading", { name: "All guides" })).toBeVisible();
 
   const search = page.getByTestId("docs-search").first();
+  await search.focus();
+  const focusStyle = await search.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outlineWidth: style.outlineWidth, outlineOffset: style.outlineOffset, boxShadow: style.boxShadow };
+  });
+  expect(focusStyle).toEqual({ outlineWidth: "1px", outlineOffset: "1px", boxShadow: "none" });
   await search.fill("Nominatim");
   await expect(page.getByRole("navigation", { name: "Documentation pages" }).getByRole("link", { name: "GPS and location metadata" })).toBeVisible();
   await expect(page.getByTestId("docs-search-status").first()).toContainText("matching guides");

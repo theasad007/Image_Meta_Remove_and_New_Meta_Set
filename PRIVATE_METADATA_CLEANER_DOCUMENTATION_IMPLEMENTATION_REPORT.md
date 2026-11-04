@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary
 
-Implemented a static documentation center for Private Metadata Cleaner at `/docs/`, with a landing page and 15 workflow-based guides. Added desktop/tablet/mobile navigation, client-side search, real screenshots from synthetic fixtures, canonical metadata, sitemap/robots handling, focused regression tests, and a repository maintenance convention. Corrected related public copy that incorrectly described GPS editing as unavailable. MP3 documentation is intentionally deferred while that support is being completed.
+Implemented a static documentation center for Private Metadata Cleaner at `/docs/`, with a landing page and 16 workflow-based guides. Added desktop/tablet/mobile navigation, client-side search, real screenshots from synthetic fixtures, canonical metadata, sitemap/robots handling, focused regression tests, and a repository maintenance convention. Corrected related public copy that incorrectly described GPS editing as unavailable. The supported MP3 inspection, cleaning, and rewrite workflow is documented with its verified audio-payload and C2PA limitations.
 
 The local implementation is built and browser-checked. It is committed locally as `7a44ee0`. The GitHub push was blocked by automatic approval review, so Cloudflare has not received this change and the live documentation URL is not yet verified.
 
@@ -18,7 +18,7 @@ The local implementation is built and browser-checked. It is committed locally a
 
 ## 3. Live Website Research Findings
 
-The public homepage and logged-out profile route were reviewed. The live homepage contained older helper text describing GPS editing and some rewrite capabilities as unavailable. Source and test review confirmed the current in-app GPS editor and image rewrite paths; the related helper copy was corrected. MP3 guidance is intentionally omitted from this merged release.
+The public homepage and logged-out profile route were reviewed. The live homepage contained older helper text describing GPS editing and some rewrite capabilities as unavailable. Source and test review confirmed the current in-app GPS editor, image rewrite paths, and MP3 processing path; the related helper copy was corrected.
 
 Live review is partial for signed-in account screens. No production account, Firebase data, entitlements, or feature policies were changed to create documentation screenshots. The remaining account guidance was verified against current UI source and existing tests.
 
@@ -47,7 +47,7 @@ Access documented: guest inspection, cleaning, ZIPs, reports, and one-image cust
 
 ## 6. Complete Documentation Page Inventory
 
-The public documentation contains 16 pages: one landing page plus 15 guides.
+The public documentation contains 17 pages: one landing page plus 16 guides.
 
 | Page | URL |
 |---|---|
@@ -70,7 +70,7 @@ The public documentation contains 16 pages: one landing page plus 15 guides.
 
 ## 7. Supported Formats Coverage
 
-The Supported formats guide separates queueing, preview, inspection, cleaning, rewriting, GPS, and limitations. It also covers rewrite channels by format, AI metadata evidence boundaries, payload preservation, animated WebP, browser-dependent previews, HEIC/HEIF layout limits, and preview-only video behavior. MP3 is not listed while audio support is under active development.
+The Supported formats guide separates queueing, preview, inspection, cleaning, rewriting, GPS, and limitations. It also covers rewrite channels by format, AI metadata evidence boundaries, payload preservation, animated WebP, browser-dependent previews, HEIC/HEIF layout limits, MP3 ID3 handling and audio-payload preservation, and preview-only video behavior.
 
 ## 8. Workflow Documentation Coverage
 

@@ -42,7 +42,7 @@ export default function DocsNavigation({ activeSlug }: { activeSlug?: string }) 
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search guides"
           autoComplete="off"
-          className="min-h-10 w-full rounded-xl border border-[#dfe6f0] bg-white py-2 pl-9 pr-3 text-sm text-[#16244a] outline-none placeholder:text-slate-400 focus-visible:border-[#2d5be9] focus-visible:ring-2 focus-visible:ring-[#2d5be9]/20"
+          className="min-h-10 w-full rounded-xl border border-[#dfe6f0] bg-white py-2 pl-9 pr-3 text-sm text-[#16244a] outline-none placeholder:text-slate-400 focus-visible:border-[#2d5be9] focus-visible:ring-0 focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-[#2d5be9]"
           data-testid="docs-search"
         />
       </div>

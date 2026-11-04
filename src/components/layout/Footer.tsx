@@ -48,7 +48,7 @@ export default function Footer() {
 
         <div className="mt-7 flex flex-col gap-3 border-t border-white/10 pt-5 text-xs leading-6 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-2xl">
-            Supported formats: JPEG, PNG, WebP, AVIF and supported HEIC still layouts can be inspected and cleaned locally. MP4, MOV and WebM open as previews only; video metadata tools, GPS coordinate editing and visual AI detection are not available.
+            Supported formats: JPEG, PNG, WebP, AVIF, supported HEIC still layouts and MP3 can be inspected and cleaned locally. MP3 metadata rewriting preserves the encoded audio payload. MP4, MOV and WebM open as previews only; video metadata tools, GPS coordinate editing and visual AI detection are not available.
           </p>
           <p className="shrink-0 sm:text-right">
             © 2026 Private Metadata Cleaner by{" "}

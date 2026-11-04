@@ -37,15 +37,15 @@ export const DOC_ARTICLES: DocArticle[] = [
     searchTerms: ["introduction", "workspace", "upload", "choose files", "tool selection"],
     sections: [
       { id: "what-the-app-does", title: "What the app does", blocks: [
-        { type: "paragraph", text: "Private Metadata Cleaner reads supported image metadata in your browser. You can inspect findings, remove supported metadata, rewrite selected fields, and download a separate output. The original file in its source location is not changed." },
+        { type: "paragraph", text: "Private Metadata Cleaner reads supported image and MP3 metadata in your browser. You can inspect findings, remove supported metadata, rewrite selected fields, and download a separate output. The original file in its source location is not changed." },
         { type: "callout", tone: "note", title: "Local processing", text: "Media bytes are processed in the browser and are not uploaded. Google sign-in and optional location lookup are separate network features; see Privacy and account data for details." },
       ] },
       { id: "first-workflow", title: "Your first workflow", blocks: [
         { type: "steps", items: [
           { title: "Open the workspace", text: "Go to the home page. Choose AI Metadata Detector & Remover to prioritize supported AI-related metadata evidence, or Metadata & GeoTag Manager to focus on general tags such as EXIF, GPS, XMP, and IPTC. Both tools use the same file queue." },
           { title: "Add files", text: "Select Choose files or use the upload area. The app checks file bytes to identify supported formats; the filename alone does not establish support." },
-          { title: "Review findings", text: "Wait for inspection to finish, then open View details on a supported image. Read the status and any warnings before choosing an operation." },
-          { title: "Choose an operation", text: "Use Remove Metadata for broad supported metadata cleaning, Remove AI Metadata for the narrower AI-evidence workflow, or Edit to enter new metadata for a supported image." },
+          { title: "Review findings", text: "Wait for inspection to finish, then open View details on a supported image or MP3. Read the status and any warnings before choosing an operation." },
+          { title: "Choose an operation", text: "Use Remove Metadata for broad supported metadata cleaning, Remove AI Metadata for the narrower AI-evidence workflow, or Edit to enter new metadata for a supported image or MP3." },
           { title: "Check and download", text: "Review the result status and verification details. Download the separate output only when the app offers it. For several outputs, use Download ZIP." },
         ] },
         { type: "image", src: "/help-screenshots/workspace.jpg", alt: "Private Metadata Cleaner workspace with the two metadata tools and local file upload area", caption: "Workspace screenshot captured from the app. Example file and metadata values use synthetic test data." },
@@ -58,10 +58,10 @@ export const DOC_ARTICLES: DocArticle[] = [
   {
     slug: "supported-formats",
     title: "Supported formats",
-    description: "Compare inspection, cleaning, rewriting, GPS, and preview support across image and video files.",
+    description: "Compare inspection, cleaning, rewriting, GPS, and preview support across image, audio, and video files.",
     category: "Getting started",
-    related: ["inspect-metadata", "clean-metadata", "rewrite-metadata"],
-    searchTerms: ["JPEG", "JPG", "PNG", "WebP", "AVIF", "HEIC", "HEIF", "MP4", "MOV", "WebM", "file format", "animation"],
+    related: ["inspect-metadata", "clean-metadata", "rewrite-metadata", "mp3-audio"],
+    searchTerms: ["JPEG", "JPG", "PNG", "WebP", "AVIF", "HEIC", "HEIF", "MP3", "MP4", "MOV", "WebM", "file format", "animation"],
     sections: [
       { id: "capability-matrix", title: "Capability matrix", blocks: [
         { type: "paragraph", text: "The app identifies files from their bytes and checks whether their internal structure matches a supported layout. A recognized extension or browser preview does not guarantee that every metadata operation is supported." },
@@ -71,6 +71,7 @@ export const DOC_ARTICLES: DocArticle[] = [
           ["WebP still", "Yes", "Browser-dependent", "Yes", "Yes", "Yes", "Supported still layouts", "Rewrite writes EXIF and XMP. Animated WebP is safely refused."],
           ["AVIF still", "Yes", "Browser-dependent", "Yes", "Yes", "Yes", "Supported still layouts", "Only supported still-image structures are handled; image payload is preserved."],
           ["HEIC / HEIF still", "Yes", "Browser-dependent; local decode may be used", "Supported layouts", "Supported layouts", "Supported layouts", "Supported still layouts", "No conversion fallback. Generic or sequence layouts may be refused; preview support varies by browser."],
+          ["MP3", "Yes", "Audio playback may depend on browser", "Yes", "Yes", "Yes", "No", "ID3v1 and ID3v2.2–v2.4 handling; encoded MPEG audio payload stays byte-identical. No GPS writer."],
           ["MP4 / MOV / WebM", "Yes", "Preview only when browser supports it", "No", "No", "No", "No", "Video metadata is not inspected, cleaned, or rewritten."],
         ] },
         { type: "callout", tone: "warning", title: "A successful preview is not a metadata result", text: "Video files remain preview-only even when playback works. HEIC and some still formats can also be inspected without an inline preview." },
@@ -78,6 +79,7 @@ export const DOC_ARTICLES: DocArticle[] = [
       { id: "ai-evidence-by-format", title: "AI evidence by format", blocks: [
         { type: "table", headers: ["Format", "AI-related metadata evidence"], rows: [
           ["JPEG / JPG, PNG, WebP, AVIF, HEIC / HEIF", "The inspector looks for supported metadata indicators and attempts to read a compatible embedded C2PA manifest. A missing indicator is not proof that a file was not AI-generated."],
+          ["MP3", "The inspector checks supported ID3 AI-related tags and carriers. This audio scan is not cryptographic C2PA validation."],
           ["MP4 / MOV / WebM", "Not inspected; preview only."],
         ] },
       ] },
@@ -152,7 +154,7 @@ export const DOC_ARTICLES: DocArticle[] = [
         { type: "callout", tone: "warning", title: "No authorship verdict", text: "A missing indicator does not prove that a file was not generated by AI. A detected indicator does not prove who created the file or that the claim is trustworthy. This tool is not visual AI detection and cannot prove whether an image is AI-generated." },
       ] },
       { id: "removal-impact", title: "What removal changes", blocks: [
-        { type: "list", items: ["Remove AI Metadata targets supported metadata evidence; the cleaner may need to remove a containing metadata family if safe single-tag surgery is not available.", "A C2PA manifest may be removed only when its container is structurally identified and the selected operation covers it.", "Changing file bytes can invalidate signed credentials. The app does not forge, recreate, or promise valid provenance after rewriting." ] },
+        { type: "list", items: ["Remove AI Metadata targets supported metadata evidence; the cleaner may need to remove a containing metadata family if safe single-tag surgery is not available.", "A C2PA manifest may be removed only when its container is structurally identified and the selected operation covers it.", "Changing file bytes can invalidate signed credentials. The app does not forge, recreate, or promise valid provenance after rewriting.", "MP3 can contain AI-related tags or a C2PA-like carrier; the audio carrier scan is not cryptographic C2PA validation." ] },
       ] },
     ],
   },
@@ -197,7 +199,7 @@ export const DOC_ARTICLES: DocArticle[] = [
     sections: [
       { id: "bulk-workflow", title: "Run bulk cleaning", blocks: [
         { type: "steps", items: [
-          { title: "Add files", text: "Choose multiple files at once or select Add files from the queue toolbar. Supported images can be processed; preview-only videos remain unsupported for metadata operations." },
+          { title: "Add files", text: "Choose multiple files at once or select Add files from the queue toolbar. Supported images and MP3 files can be processed; preview-only videos remain unsupported for metadata operations." },
           { title: "Choose the cleaning scope", text: "Use Remove Metadata to clean supported metadata broadly, or Remove AI Metadata for supported AI-related evidence. Guest bulk cleaning is currently available. If access changes, the workspace will show a notice." },
           { title: "Track each file", text: "The progress summary reports processed, verified, unchanged, partial, failed, and unsupported files. A file can fail without preventing other eligible files from finishing." },
           { title: "Create the archive", text: "After results are ready, select Download ZIP. Verified outputs are included. Partial outputs are excluded by default; check Include partial outputs in ZIP only after reviewing their warnings." },
@@ -215,14 +217,14 @@ export const DOC_ARTICLES: DocArticle[] = [
   {
     slug: "rewrite-metadata",
     title: "Edit or rewrite metadata",
-    description: "Enter supported values, preview planned changes, choose a rewrite mode, and verify the new image output.",
+    description: "Enter supported values, preview planned changes, choose a rewrite mode, and verify the new image or MP3 output.",
     category: "Rewriting",
-    related: ["gps-location", "account-profile", "projects-premium"],
+    related: ["gps-location", "account-profile", "projects-premium", "mp3-audio"],
     searchTerms: ["rewrite", "Edit", "Basic info", "Advanced", "replace", "update selected fields", "guest"],
     sections: [
       { id: "open-editor", title: "Open Edit Metadata", blocks: [
         { type: "steps", items: [
-          { title: "Add a supported image", text: "After the file appears in the queue, choose Edit on its row. The editor opens for that file." },
+          { title: "Add a supported image or MP3", text: "After the file appears in the queue, choose Edit on its row. The editor opens for that file." },
           { title: "Enter values", text: "In Basic info, enter the supported company, creator, copyright, rights, website, contact, title, description, keywords, or descriptive location name values offered for that format." },
           { title: "Choose a source", text: "In Preset & Profile, keep Custom values for this image, select a saved profile after signing in, or select an available project. A value you type for the image takes precedence for that image." },
           { title: "Preview and apply", text: "Select Preview changes to review planned field destinations. Then select Apply & create clean copy. The app writes a separate output and re-reads it before offering download." },
@@ -266,7 +268,35 @@ export const DOC_ARTICLES: DocArticle[] = [
         { type: "list", items: ["Manual coordinates are available without the map or search service.", "Use the map only after opting in to load map tiles. Map requests go to the displayed OpenStreetMap tile provider.", "A place-name search contacts the Nominatim service only when you submit a search. The typed query and your network address reach that provider; image bytes, filename, and metadata are not sent.", "Use my current location asks the browser for location permission only after you click it. The returned values fill the draft fields; nothing is written until you apply the change." ] },
       ] },
       { id: "gps-limits", title: "GPS limits", blocks: [
-        { type: "list", items: ["GPS editing is for supported still image layouts; video remains preview-only.", "A location name is descriptive text and does not set coordinates.", "A saved Metadata Profile stores a descriptive location name only. My Projects can store project GPS coordinates for eligible Premium users.", "Bulk GPS writing is Premium by default. Pure GPS removal under a cleaning action is not affected by that feature gate." ] },
+        { type: "list", items: ["GPS editing is for supported still image layouts. MP3 has no GPS support, and video remains preview-only.", "A location name is descriptive text and does not set coordinates.", "A saved Metadata Profile stores a descriptive location name only. My Projects can store project GPS coordinates for eligible Premium users.", "Bulk GPS writing is Premium by default. Pure GPS removal under a cleaning action is not affected by that feature gate." ] },
+      ] },
+    ],
+  },
+  {
+    slug: "mp3-audio",
+    title: "Inspect, clean, and rewrite MP3 metadata",
+    description: "Work with supported ID3 tags and AI-related evidence while preserving the encoded audio payload.",
+    category: "Rewriting",
+    related: ["supported-formats", "inspect-metadata", "clean-metadata", "rewrite-metadata", "downloads-reports"],
+    searchTerms: ["MP3", "ID3", "ID3v1", "ID3v2.2", "ID3v2.3", "ID3v2.4", "APE", "Lyrics3", "MPEG"],
+    sections: [
+      { id: "inspect-mp3", title: "Inspect an MP3", blocks: [
+        { type: "steps", items: [
+          { title: "Add the MP3", text: "Choose the .mp3 file in the workspace and wait for the byte-level format check." },
+          { title: "Open details", text: "Choose View details to read recognized ID3v1 and ID3v2.2–v2.4 tags, the MPEG audio integrity result, and any supported AI-related evidence." },
+          { title: "Read the coverage notes", text: "The inspector may also identify APEv2 or Lyrics3 trailing structures. An embedded C2PA-like GEOB carrier is detected as a carrier only; it is not cryptographically validated." },
+        ] },
+      ] },
+      { id: "clean-mp3", title: "Clean an MP3", blocks: [
+        { type: "steps", items: [
+          { title: "Choose the cleaning action", text: "Use Remove Metadata for supported ID3 tags and validated trailing APEv2/Lyrics3 structures, or Remove AI Metadata for supported AI-related frames." },
+          { title: "Review verification", text: "The app checks the output and confirms that MPEG audio payload bytes remain unchanged. If a tag layout such as unsynchronized ID3 cannot be safely rebuilt, the operation is refused or reported with its limitation." },
+          { title: "Download the separate file", text: "Choose the available MP3 download after reading the status and warnings. The original remains unchanged." },
+        ] },
+      ] },
+      { id: "rewrite-mp3", title: "Rewrite MP3 tags", blocks: [
+        { type: "paragraph", text: "Choose Edit on the MP3 row and enter values supported by the displayed ID3 destinations. Verified mappings include publisher/company, artist/creator, copyright, title, description, keywords, website, and descriptive location name. Rights owner and contact are reported unsupported; GPS is not written to audio." },
+        { type: "list", items: ["Replace removable editable metadata, then write creates a fresh ID3v2.3 tag set for the supported path.", "Update selected fields writes selected compatible tags; older or unsupported layouts can be refused rather than guessed.", "After applying, the app re-reads tags and verifies MPEG audio payload integrity before offering the rewritten download.", "Batch MP3 rewriting follows the batch rewrite feature gate and is Premium by default." ] },
       ] },
     ],
   },
@@ -381,7 +411,7 @@ export const DOC_ARTICLES: DocArticle[] = [
     searchTerms: ["privacy", "security", "upload", "Firebase", "Firestore", "data", "local storage", "network", "Nominatim", "map"],
     sections: [
       { id: "media-processing", title: "Media processing stays in your browser", blocks: [
-        { type: "paragraph", text: "The app processes selected image bytes in the browser. It does not upload media files to the app server. Cleaning and rewriting create a separate output in the browser, and verification re-reads that output before offering a download." },
+        { type: "paragraph", text: "The app processes selected image and MP3 bytes in the browser. It does not upload media files to the app server. Cleaning and rewriting create a separate output in the browser, and verification re-reads that output before offering a download." },
         { type: "list", items: ["The source file remains unchanged at its original location.", "Files and outputs live in browser memory while the page is open; clearing the queue discards the in-app copies and results.", "Static hosting serves the web application and its assets; it is not a media-processing backend." ] },
       ] },
       { id: "account-storage", title: "Account features and browser storage", blocks: [
@@ -407,7 +437,7 @@ export const DOC_ARTICLES: DocArticle[] = [
     sections: [
       { id: "file-issues", title: "File or preview problems", blocks: [
         { type: "table", headers: ["What you see", "Why it may happen / what to try"], rows: [
-          ["The file is unsupported", "The bytes may not match a supported still-image layout, or the file may be video. Confirm the actual format and use a supported copy. Video is preview-only."],
+          ["The file is unsupported", "The bytes may not match a supported still-image or MP3 layout, or the file may be video. Confirm the actual format and use a supported copy. Video is preview-only."],
           ["An image does not preview", "HEIC/HEIF and some browser/codec combinations cannot display inline. A missing preview does not by itself mean metadata inspection failed."],
           ["Animated WebP is refused", "Animated WebP is outside the verified cleaning path. Use a still image copy if you have one; do not convert the source through an untrusted service for private files."],
           ["Inspection is partial or fails", "The metadata may be malformed, truncated, unsupported, or too large for available browser memory. Review details and warnings; retry with a known-good local copy if appropriate."],
@@ -420,6 +450,7 @@ export const DOC_ARTICLES: DocArticle[] = [
           ["Rewrite is disabled", "Check that at least one valid, supported value is entered and one field is selected. Some fields or channels are unsupported for that format."],
           ["Batch rewrite or project access is locked", "These features require Premium access by default. Check your account status or ask the person who provided your app access about availability."],
           ["GPS Apply is unavailable", "Check coordinate ranges, the file format, and that a supported still image is selected. Map loading is optional; manual coordinates remain available."],
+          ["MP3 tags are refused", "Some malformed, oversized, or unsynchronized ID3 structures cannot be safely rebuilt. Use the result guidance; do not assume a rewrite occurred."],
         ] },
       ] },
       { id: "account-download-issues", title: "Account and download problems", blocks: [
@@ -454,13 +485,14 @@ export const DOC_ARTICLES: DocArticle[] = [
         { type: "table", headers: ["Question", "Answer"], rows: [
           ["Can it prove an image was AI-generated?", "No. The app checks supported metadata evidence, not pixels, and cannot prove authorship or generation method."],
           ["Does cleaning reduce image quality?", "The image payload is preserved for supported cleaning paths; the app does not use a canvas re-encode fallback. Unsupported structures can be refused."],
+          ["Does MP3 cleaning affect audio quality?", "The encoded MPEG audio payload is byte-compared and remains unchanged on verified supported operations."],
           ["Can I remove GPS or write GPS?", "Yes, on supported still image layouts. Use Edit → Location (GPS). A descriptive Location Name alone does not change coordinates."],
           ["Can I use metadata for SEO?", "You can write supported descriptive values such as title, description, creator, keywords, website, and location name. Search engines may ignore or interpret embedded metadata differently; the app does not promise ranking results."],
         ] },
       ] },
       { id: "formats-and-features", title: "Formats and features", blocks: [
         { type: "table", headers: ["Question", "Answer"], rows: [
-          ["Which formats are supported?", "JPEG/JPG, PNG, WebP, AVIF, and supported HEIC/HEIF still layouts. MP4, MOV, and WebM are preview-only. See Supported formats for exact limitations."],
+          ["Which formats are supported?", "JPEG/JPG, PNG, WebP, AVIF, supported HEIC/HEIF still layouts, and MP3. MP4, MOV, and WebM are preview-only. See Supported formats for exact limitations."],
           ["Can I clean video?", "No. MP4, MOV, and WebM can be previewed only; their metadata is not inspected, cleaned, or rewritten."],
           ["Can I process multiple files?", "Bulk cleaning is free by default. Batch rewriting and bulk GPS writing are separate Premium-by-default operations."],
           ["Can I export PDF reports?", "Yes. Select Download PDF in Audit reports. Report values are hidden by default; review privacy options before sharing."],
@@ -479,8 +511,8 @@ export const DOC_ARTICLES: DocArticle[] = [
     searchTerms: ["changelog", "release notes", "November 2026", "documentation"],
     sections: [
       { id: "2026-11-04", title: "Documentation release — November 4, 2026", blocks: [
-        { type: "paragraph", text: "Added a public, workflow-based help center for Private Metadata Cleaner, with guides for supported formats, inspection, cleaning, rewriting, GPS, downloads, reports, accounts, projects, privacy, and troubleshooting." },
-        { type: "paragraph", text: "Updated product help copy to point users to the working GPS editor and to state current image, video-preview, and rewrite behavior more accurately. Audio documentation is intentionally deferred while MP3 support is being completed. This release changes documentation and help text only; media processing behavior is unchanged." },
+        { type: "paragraph", text: "Added a public, workflow-based help center for Private Metadata Cleaner, with guides for supported formats, inspection, cleaning, rewriting, GPS, MP3, downloads, reports, accounts, projects, privacy, and troubleshooting." },
+        { type: "paragraph", text: "Updated product help copy to point users to the working GPS editor and to state current image, MP3, video-preview, and rewrite behavior more accurately. This release changes documentation and help text only; media processing behavior is unchanged." },
       ] },
     ],
   },

@@ -70,6 +70,14 @@ a:active {
   border-radius: 8px;
 }
 
+/* Keep the documentation search focus cue compact instead of stacking the
+   global outline with the input's default ring shadow. */
+input[data-testid="docs-search"]:focus-visible {
+  outline: 1px solid #2d5be9;
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
 /* Handwritten annotation style for the Screen 01 illustration
    (Caveat is bundled locally via @fontsource; OFL license). */
 .font-hand {

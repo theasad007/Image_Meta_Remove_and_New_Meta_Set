@@ -368,7 +368,7 @@ function WorkFormatsStrip() {
             </svg>
           </span>
           <span id="formats-heading" className="text-[14.5px] font-extrabold tracking-[-0.01em] text-[#16244a]">File support</span>
-          <span className="text-[12.5px] font-semibold text-[#5a6b85]">JPEG · PNG · WebP · AVIF · HEIC</span>
+          <span className="text-[12.5px] font-semibold text-[#5a6b85]">JPEG · PNG · WebP · AVIF · HEIC · MP3</span>
           <span className="ml-auto text-[12.5px] font-bold text-[#2d5be9] group-open:hidden">View details</span>
           <span className="ml-auto hidden text-[12.5px] font-bold text-[#2d5be9] group-open:block">Hide details</span>
         </summary>
@@ -396,5 +396,6 @@ const FORMAT_ROWS = [
   { ext: "WebP", status: "Inspect + clean", note: "Still images are supported. Animated WebP is identified and safely refused.", ready: true },
   { ext: "AVIF", status: "Inspect + clean", note: "Supported still-image layouts keep encoded image payloads unchanged.", ready: true },
   { ext: "HEIC / HEIF", status: "Preview + clean", note: "A local decoder provides the preview. Tested still layouts can be cleaned without changing the image payload.", ready: true },
+  { ext: "MP3 (audio)", status: "Inspect + clean + rewrite", note: "ID3v1/v2.2–v2.4 tags, AI-evidence frames and trailing APEv2/Lyrics3. The encoded MPEG audio payload is never re-encoded and stays byte-identical. GPS is not written to audio.", ready: true },
   { ext: "MP4 / MOV / WebM", status: "Preview only", note: "Files may be queued, but video metadata inspection and cleaning are not available yet.", ready: false },
 ];

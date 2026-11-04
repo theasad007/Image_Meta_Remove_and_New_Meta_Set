@@ -10,7 +10,8 @@ import { useRef, useState } from "react";
 export const PICKER_ACCEPT =
   "image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif," +
   "video/mp4,video/quicktime,video/webm," +
-  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm";
+  "audio/mpeg," +
+  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm,.mp3";
 
 interface UploadPanelProps {
   onFiles: (files: File[]) => void;
@@ -122,7 +123,7 @@ export default function UploadPanel({ onFiles }: UploadPanelProps) {
           or <span data-testid="upload-choose" className="font-bold text-[#2d5be9] underline decoration-blue-300 underline-offset-4 group-hover:decoration-[#2d5be9]">browse files</span> from your device
         </p>
         <p id="upload-formats" className="relative mt-4 max-w-2xl text-[13px] leading-[1.55] text-[#8393ad]">
-          Images: JPEG, PNG, WebP, AVIF, HEIC and HEIF. MP4, MOV and WebM can be queued for preview, but video metadata tools are not available yet.
+          Images: JPEG, PNG, WebP, AVIF, HEIC and HEIF. MP3 supports metadata inspection, cleaning and rewriting. MP4, MOV and WebM can be queued for preview, but video metadata tools are not available yet.
         </p>
       </label>
       <p

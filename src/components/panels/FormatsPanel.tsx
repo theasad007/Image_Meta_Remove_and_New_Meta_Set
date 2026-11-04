@@ -4,6 +4,7 @@ const ROWS = [
   { ext: "WebP", status: "Inspect + clean", note: "Still images are supported. Animated WebP is identified and safely refused.", ready: true },
   { ext: "AVIF", status: "Inspect + clean", note: "Supported still-image layouts keep encoded image payloads unchanged.", ready: true },
   { ext: "HEIC / HEIF", status: "Preview + clean", note: "A local decoder provides the preview. Tested still layouts can be cleaned without changing the image payload.", ready: true },
+  { ext: "MP3 (audio)", status: "Inspect + clean + rewrite", note: "ID3v1/v2.2–v2.4 tags, AI-evidence frames and validated trailing APEv2/Lyrics3 structures. MPEG audio payload is preserved byte-for-byte; GPS is not written to audio.", ready: true },
   { ext: "MP4 / MOV / WebM", status: "Preview only", note: "Files may be queued, but video metadata inspection and cleaning are not available yet.", ready: false },
 ];
 
@@ -13,7 +14,7 @@ export default function FormatsPanel() {
       <details className="surface-card rounded-2xl p-4">
         <summary className="flex cursor-pointer items-center gap-3">
           <span id="formats-heading" className="font-extrabold text-slate-900">File support</span>
-          <span className="text-xs text-slate-500">JPEG · PNG · WebP · AVIF · HEIC</span>
+          <span className="text-xs text-slate-500">JPEG · PNG · WebP · AVIF · HEIC · MP3</span>
           <span className="ml-auto text-xs font-bold text-blue-700">View details</span>
         </summary>
       <ul className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
