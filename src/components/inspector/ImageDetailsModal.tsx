@@ -1041,7 +1041,7 @@ export default function ImageDetailsModal({
                             <>
                               {categoryList(tabs.gps, true)}
                               <p className="mt-2 text-[11px] text-slate-500">
-                                GPS coordinates, where shown, are file metadata only — no place names are derived and no map is shown. GPS coordinate editing is not yet implemented.
+                                This view shows GPS coordinates stored in the file; no place names are derived here. To add, update or remove coordinates, open Edit metadata → Location (GPS).
                               </p>
                             </>
                           )
@@ -1261,7 +1261,7 @@ export default function ImageDetailsModal({
                       <>
                         {categoryList(tabs.gps, true)}
                         <p className="mt-2 text-[11px] text-slate-500">
-                          GPS coordinates, where shown, are file metadata only — no place names are derived and no map is shown. GPS coordinate editing is not yet implemented.
+                          This view shows GPS coordinates stored in the file; no place names are derived here. To add, update or remove coordinates, open Edit metadata → Location (GPS).
                         </p>
                       </>
                     ) : emptyState(tabs.gps))}

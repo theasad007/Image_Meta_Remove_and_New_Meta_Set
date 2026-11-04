@@ -10,8 +10,7 @@ import { useRef, useState } from "react";
 export const PICKER_ACCEPT =
   "image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif," +
   "video/mp4,video/quicktime,video/webm," +
-  "audio/mpeg," +
-  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm,.mp3";
+  ".jpg,.jpeg,.png,.webp,.avif,.heic,.heif,.mp4,.mov,.webm";
 
 interface UploadPanelProps {
   onFiles: (files: File[]) => void;

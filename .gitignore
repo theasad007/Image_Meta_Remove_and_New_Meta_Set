@@ -16,3 +16,7 @@ firebase-debug.log
 *service-account*.json
 serviceAccountKey*.json
 *-service-account-key.json
+
+# The public documentation route belongs to the application, not the legacy docs/ workspace.
+!/app/docs/
+!/app/docs/**

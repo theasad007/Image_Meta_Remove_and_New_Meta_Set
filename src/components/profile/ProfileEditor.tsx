@@ -47,7 +47,7 @@ const GROUP_DEFS = [
   {
     id: "location",
     title: "Location Information (Optional)",
-    description: "An honest descriptive label only — GPS coordinate writing is not available yet.",
+    description: "An optional descriptive label for the place associated with your images.",
     fields: ["locationName"] as ProfileField[],
   },
 ] as const;
@@ -434,8 +434,7 @@ export default function ProfileEditor({
             ) : null}
             {group.id === "location" ? (
               <p className="mt-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] font-medium leading-4 text-amber-900">
-                Latitude, Longitude and Altitude inputs are intentionally absent — GPS coordinate writing is not
-                implemented yet, so this text field never changes coordinates.
+                This saved profile field is a descriptive location name only. For image GPS coordinates, use Edit metadata → Location (GPS), or save reusable coordinates in a My Projects preset.
               </p>
             ) : null}
           </div>

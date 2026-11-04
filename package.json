@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "docs:screenshots": "node scripts/capture-doc-screenshots.mjs",
     "test:e2e:premium": "node scripts/run-premium-e2e.mjs",
     "test:rules": "firebase emulators:exec --project phase6-rules-test --only firestore \"vitest run src/lib/firebase/rules.test.ts\""
   },

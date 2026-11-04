@@ -20,3 +20,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Product documentation convention
+
+When a change adds or alters user-visible behavior, update the matching guide in `src/content/guides/content.ts` in the same change. Update the supported-format matrix when format capabilities change, refresh affected screenshots under `public/help-screenshots/` when the interface changes materially, and add a dated user-facing entry to the Release notes article. Verify guide links and static routes with the docs E2E checks and `npm run build`. Do not document a feature until its UI and behavior are verified; include limitations and exact current labels.

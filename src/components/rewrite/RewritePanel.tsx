@@ -131,7 +131,7 @@ export default function RewritePanel({
         Per-format notes: JPEG writes EXIF + XMP + IPTC; PNG/WebP/AVIF/HEIC write EXIF + XMP only (requested IPTC
         locations there report unsupported). C2PA manifests are never forged; replace mode reuses the verified
         C2PA cleaner in scope, update mode preserves and re-validates. Video rows never enter the image writer.
-        No GPS coordinate form here — that is planned Phase 7 GeoTag work.
+        GPS coordinates are edited from a still image&apos;s Edit metadata → Location (GPS) tab.
       </p>
 
       {blank ? <p className="mt-2 text-xs text-amber-800">⚠ The profile form is blank — fill at least one field to enable rewriting.</p> : null}

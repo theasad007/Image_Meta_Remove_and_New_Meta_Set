@@ -402,7 +402,7 @@ export default function QueueItem({
               <div className="aspect-square max-h-72 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"><Preview entry={entry} enabled detailed /></div>
               <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">
                 <p className="font-bold text-slate-900">{activeTool === "ai_metadata" ? "AI metadata view" : "General metadata view"}</p>
-                <p className="mt-1">{activeTool === "ai_metadata" ? "Qualified AI indicators and Content Credentials are prioritized. This is not pixel-based AI detection." : "EXIF, GPS, XMP and IPTC are prioritized. GPS coordinate editing is not available yet."}</p>
+                <p className="mt-1">{activeTool === "ai_metadata" ? "Qualified AI indicators and Content Credentials are prioritized. This is not pixel-based AI detection." : "EXIF, GPS, XMP and IPTC are prioritized. Open Edit metadata → Location (GPS) on a still image to change coordinates."}</p>
               </div>
             </aside>
             <InspectorPanel result={inspectionResult as ImageInspectionResult} embedded headingId={`inspection-heading-${item.id}`} prioritizeAi={activeTool === "ai_metadata"} />

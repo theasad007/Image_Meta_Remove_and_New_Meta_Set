@@ -26,6 +26,16 @@ const NAV_LINKS: Array<{ href: string; label: string; icon: ReactNode }> = [
     ),
   },
   {
+    href: "/docs/",
+    label: "Docs",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-[1.15rem] w-[1.15rem]" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 4.8A1.8 1.8 0 0 1 6.8 3H19v16H6.8A1.8 1.8 0 0 0 5 20.8V4.8Z" />
+        <path d="M5 20.8A1.8 1.8 0 0 1 6.8 19H19M9 7h6m-6 3h6m-6 3h4" />
+      </svg>
+    ),
+  },
+  {
     href: "/#privacy",
     label: "Privacy",
     icon: (
@@ -57,14 +67,11 @@ const NAV_LINKS: Array<{ href: string; label: string; icon: ReactNode }> = [
  * to relabel the same pill; the default render is byte-identical to the
  * approved, locked Screen 01 header.
  *
- * Screen 07 passes `active="profile"` so the Profile nav link shows the
- * active state; every other render defaults to "workspace" and stays
- * byte-identical to the approved header.
+ * Profile and documentation pages pass an active state so their nav link
+ * is highlighted. Workspace remains the default for existing screens.
  */
-export default function Header({ uploadLabel, active = "workspace" }: { uploadLabel?: string; active?: "workspace" | "profile" }) {
-  // Locked screens never pass `active`; the default render is the exact
-  // approved header. Only active="profile" adds the active-state cues.
-  const profileActive = active === "profile";
+export default function Header({ uploadLabel, active = "workspace" }: { uploadLabel?: string; active?: "workspace" | "profile" | "docs" }) {
+  const activeLabel = active === "profile" ? "Profile" : active === "docs" ? "Docs" : "Workspace";
   const router = useRouter();
   const openPicker = () => {
     const input = document.getElementById("private-media-picker");
@@ -97,22 +104,22 @@ export default function Header({ uploadLabel, active = "workspace" }: { uploadLa
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="ml-auto hidden items-center gap-1 md:flex">
+        <nav aria-label="Primary" className="ml-auto hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((link) => {
-            const isActive = link.label === (profileActive ? "Profile" : "Workspace");
+            const isActive = link.label === activeLabel;
             return (
               <Link
                 key={link.label}
                 prefetch={false}
                 href={link.href}
-                aria-current={profileActive && isActive ? "page" : undefined}
+                aria-current={isActive ? "page" : undefined}
                 className={`relative flex items-center gap-2 rounded-xl px-3 py-2 text-[14.5px] font-bold transition-colors ${
                   isActive ? "text-[#2d5be9] hover:bg-[#eef3fe]" : "text-[#394661] hover:bg-slate-100 hover:text-[#131f3d]"
                 }`}
               >
                 <span aria-hidden="true" className="[&>svg]:stroke-[1.9]">{link.icon}</span>
                 {link.label}
-                {profileActive && isActive ? (
+                {isActive ? (
                   <span aria-hidden="true" className="absolute -bottom-0.5 left-3 right-3 h-[2.5px] rounded-full bg-[#2d5be9]" />
                 ) : null}
               </Link>
@@ -120,7 +127,7 @@ export default function Header({ uploadLabel, active = "workspace" }: { uploadLa
           })}
         </nav>
 
-        <details className="relative ml-auto md:hidden">
+        <details className="relative ml-auto lg:hidden">
           <summary
             aria-label="Open navigation"
             className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm [&::-webkit-details-marker]:hidden"
@@ -143,7 +150,7 @@ export default function Header({ uploadLabel, active = "workspace" }: { uploadLa
           type="button"
           onClick={openPicker}
           data-testid="header-choose-files"
-          className="ml-2 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[0.85rem] bg-[#2d5be9] px-3 text-[13px] font-bold text-white shadow-[0_10px_22px_rgba(45,91,233,.32)] hover:bg-[#1f4ad6] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#2d5be9] motion-safe:transition-colors sm:px-4 sm:text-sm md:ml-3"
+          className="ml-2 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[0.85rem] bg-[#2d5be9] px-3 text-[13px] font-bold text-white shadow-[0_10px_22px_rgba(45,91,233,.32)] hover:bg-[#1f4ad6] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#2d5be9] motion-safe:transition-colors sm:px-4 sm:text-sm lg:ml-3"
         >
           <span aria-hidden="true" className="[&>svg]:stroke-[1.9]">
             <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

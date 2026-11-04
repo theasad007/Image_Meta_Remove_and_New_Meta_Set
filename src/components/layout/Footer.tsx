@@ -3,6 +3,7 @@ import Link from "next/link";
 const LINKS = [
   { href: "/#tools", label: "Workspace" },
   { href: "/#formats", label: "File support" },
+  { href: "/docs/", label: "Docs" },
   { href: "/#privacy", label: "Privacy" },
   { href: "/account/profile", label: "Profile" },
 ];

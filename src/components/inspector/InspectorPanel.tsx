@@ -214,7 +214,8 @@ export default function InspectorPanel({
       </div>
       <p className="mt-3 text-[11px] text-slate-500">
         GPS coordinates, where shown, are file metadata only — no place names
-        are derived and no map is shown in this phase.
+        are derived in this details view. Edit metadata → Location (GPS) lets
+        you add, update, or remove coordinates.
       </p>
     </section>
   );

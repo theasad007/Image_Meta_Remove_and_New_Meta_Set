@@ -22,8 +22,8 @@ const TOOLS: Array<{
     value: "metadata_geotag",
     label: "Metadata & GeoTag Manager",
     short: "Metadata & GeoTag",
-    description: "Review EXIF, GPS, XMP and IPTC, then remove or use the current profile rewrite workflow.",
-    note: "GPS reading is available. Coordinate editing is coming later.",
+    description: "Review EXIF, GPS, XMP and IPTC; remove metadata or edit supported image fields and GPS coordinates.",
+    note: "For a still image, open Edit → Location (GPS) to add, update or remove coordinates.",
   },
 ];
 
@@ -48,8 +48,8 @@ function ToolIcon({ tool }: { tool: WorkspaceTool }) {
 /**
  * Screen 01 tool selection. Two large radio-style cards bound to the
  * existing `WorkspaceTool` state. Honest capability notes are kept in
- * the description (metadata evidence ≠ visual AI detection; GPS
- * coordinate editing ships later) per the product's no-fake-claims rule.
+ * the description (metadata evidence ≠ visual AI detection; GPS coordinate
+ * editing lives in the image editor) per the product's no-fake-claims rule.
  *
  * Screen 04 reuses the same state, testids and keyboard behavior in a
  * `compact` variant: two horizontally aligned cards with the
